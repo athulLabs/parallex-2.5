@@ -25,3 +25,8 @@
 .mask-apply{height:38px;padding:0 15px;display:flex;align-items:center;gap:7px;border:0;border-radius:8px;background:#7958e9;color:white;font-size:11px;font-weight:700}
 .mask-open-btn{margin-bottom:8px;border-color:#5b478f;background:#28213c;color:#d0c1ff}
 @media(max-width:760px){.mask-overlay{padding:7px}.mask-dialog{height:94dvh;padding:12px;gap:10px;border-radius:12px}.mask-header strong{font-size:13px}.mask-help{font-size:10px}.mask-tools{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px}.mask-tools button{justify-content:center;padding:0 5px;font-size:10px}.mask-footer{font-size:9px}.mask-apply{height:35px;padding:0 10px;font-size:10px}}
+
+.layer-name-field{display:block!important;margin:8px 0 15px!important;color:#a7a8b6;font-size:10px}
+.layer-name-field input{display:block;width:100%;height:36px;margin-top:7px;padding:0 10px;border:1px solid #393a49;border-radius:7px;background:#171922;color:#ededf5;font-size:12px;outline:none}
+.layer-name-field input:focus{border-color:#8060ec;box-shadow:0 0 0 2px #8060ec22}
+@media(max-width:760px){.top-actions .mobile-hidden{display:none}.top-actions{gap:5px}.top-actions .icon-btn{display:grid;width:30px;height:30px}.top-actions .export-btn{padding:0 8px}.project-title{min-width:0}.project-title input{width:75px}}
