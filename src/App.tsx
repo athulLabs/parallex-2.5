@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 
 type Transform = { x:number; y:number; z:number; scale:number; rotation:number; opacity:number };
-type CameraTransform = { x:number; y:number; zoom:number };
+type CameraTransform = { x:number; y:number; zoom:number; z:number };
 type Keyframe = { id:string; time:number; layers:Record<string,Transform>; camera:CameraTransform };
 type Layer = {
   id: string; name: string; url: string; fileName: string;
@@ -90,7 +90,7 @@ function Viewport({ layers, selectedId, onSelect, onMove, cameraTransform }: {
     };
   }, []);
 
-  useEffect(() => { const camera=cameraRef.current; if(!camera) return; camera.position.set(cameraTransform.x,cameraTransform.y,20); camera.lookAt(cameraTransform.x,cameraTransform.y,0); camera.zoom=cameraTransform.zoom; camera.updateProjectionMatrix(); }, [cameraTransform]);
+  useEffect(() => { const camera=cameraRef.current; if(!camera) return; camera.position.set(cameraTransform.x,cameraTransform.y,cameraTransform.z ?? 20); camera.lookAt(cameraTransform.x,cameraTransform.y,0); camera.zoom=cameraTransform.zoom; camera.updateProjectionMatrix(); }, [cameraTransform]);
 
   useEffect(() => {
     const scene = sceneRef.current; if (!scene) return;
@@ -198,7 +198,7 @@ export default function App() {
   const [playhead, setPlayhead] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [keyframes, setKeyframes] = useState<Keyframe[]>([]);
-  const [cameraTransform, setCameraTransform] = useState<CameraTransform>({x:0,y:0,zoom:1});
+  const [cameraTransform, setCameraTransform] = useState<CameraTransform>({x:0,y:0,zoom:1,z:20});
   const fileRef = useRef<HTMLInputElement>(null);
   const projectFileRef = useRef<HTMLInputElement>(null);
   const selected = layers.find(layer => layer.id === selectedId) ?? null;
@@ -219,7 +219,7 @@ export default function App() {
     const before=[...frames].reverse().find(frame=>frame.time<=playhead) ?? frames[0];
     const after=frames.find(frame=>frame.time>=playhead) ?? frames[frames.length-1];
     const span=after.time-before.time, t=span<=0?0:Math.max(0,Math.min(1,(playhead-before.time)/span));
-    return {x:before.camera.x+(after.camera.x-before.camera.x)*t,y:before.camera.y+(after.camera.y-before.camera.y)*t,zoom:before.camera.zoom+(after.camera.zoom-before.camera.zoom)*t};
+    return {x:before.camera.x+(after.camera.x-before.camera.x)*t,y:before.camera.y+(after.camera.y-before.camera.y)*t,zoom:before.camera.zoom+(after.camera.zoom-before.camera.zoom)*t,z:(before.camera.z??20)+((after.camera.z??20)-(before.camera.z??20))*t};
   })();
   const makeFrame = (time:number, layerSnapshot:Layer[]=animatedLayers, cameraSnapshot:CameraTransform=animatedCamera):Keyframe => ({
     id:uid(),time:Number(time.toFixed(2)),
@@ -317,7 +317,7 @@ export default function App() {
       setLayers(restored);
       setKeyframes(Array.isArray(payload.keyframes) ? payload.keyframes : []);
       setDuration(Number.isFinite(payload.duration) ? Math.max(1,Math.min(120,payload.duration)) : 10);
-      setCameraTransform(payload.cameraTransform && Number.isFinite(payload.cameraTransform.zoom) ? payload.cameraTransform : {x:0,y:0,zoom:1});
+      setCameraTransform(payload.cameraTransform && Number.isFinite(payload.cameraTransform.zoom) ? {...payload.cameraTransform,z:Number.isFinite(payload.cameraTransform.z)?payload.cameraTransform.z:20} : {x:0,y:0,zoom:1,z:20});
       setPlayhead(0); setPlaying(false);
       setSelectedId(restored[0]?.id ?? null);
       setProjectName(typeof payload.projectName === 'string' ? payload.projectName : 'Imported Scene');
@@ -381,7 +381,7 @@ export default function App() {
           <div className="camera-control-card"><div><Camera size={14}/> Camera framing</div>
             <label>Horizontal <b>{cameraTransform.x.toFixed(2)}</b><input type="range" min="-2" max="2" step=".01" value={cameraTransform.x} onChange={e=>updateCamera({x:+e.target.value})}/></label>
             <label>Vertical <b>{cameraTransform.y.toFixed(2)}</b><input type="range" min="-3" max="3" step=".01" value={cameraTransform.y} onChange={e=>updateCamera({y:+e.target.value})}/></label>
-            <label>Camera zoom <b>{cameraTransform.zoom.toFixed(2)}×</b><input type="range" min=".5" max="2.5" step=".01" value={cameraTransform.zoom} onChange={e=>updateCamera({zoom:+e.target.value})}/></label></div>
+            <label>Camera zoom <b>{cameraTransform.zoom.toFixed(2)}×</b><input type="range" min=".5" max="2.5" step=".01" value={cameraTransform.zoom} onChange={e=>updateCamera({zoom:+e.target.value})}/></label>\n            <label>Camera distance <b>{(cameraTransform.z??20).toFixed(1)}</b><input type="range" min="12" max="32" step=".1" value={cameraTransform.z??20} onChange={e=>updateCamera({z:+e.target.value})}/></label></div>
           <button className="wide-secondary mask-open-btn" onClick={()=>setMaskLayerId(selected.id)}><Scan size={14}/> Open manual mask editor</button><button className="wide-secondary" onClick={()=>duplicateLayer(selected)}><Copy size={14}/> Duplicate layer</button>
         </> : <div className="layer-empty"><SlidersHorizontal size={22}/><b>No layer selected</b><span>Select a layer to edit its transforms.</span></div>}</div>}
         <div className="inspector-footer"><span className="live-dot"/> Drag layers in the canvas to reposition</div>
