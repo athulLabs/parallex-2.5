@@ -54,3 +54,60 @@
 .camera-control-card label{margin:12px 0!important}
 .camera-control-card input[type=range]{margin-top:8px!important}
 @media(max-width:760px){.timeline-panel{padding:7px 8px;gap:5px}.timeline-top{gap:5px}.timeline-actions{gap:5px}.keyframe-btn{height:27px;padding:0 6px;font-size:9px}.timeline-actions label{font-size:8px}.timeline-actions select{height:25px;font-size:9px}.timeline-bottom{font-size:7px}.time-readout{font-size:9px}.timeline-ruler{font-size:7px}.timeline-scrub{height:16px}}
+
+/* Mobile editor layout repair: reserve room for canvas and keep timeline controls visible */
+@media(max-width:760px){
+  .workspace{
+    grid-template-columns:54px minmax(0,1fr);
+    grid-template-rows:minmax(0,1fr) 205px;
+    min-height:0;
+  }
+  .editor-main{
+    grid-column:2;
+    grid-row:1;
+    min-height:0;
+    padding:8px 8px 7px;
+    gap:7px;
+  }
+  .scene-toolbar{min-height:34px;gap:5px}
+  .scene-toolbar .format-chip{font-size:7px;padding:5px 6px;white-space:nowrap}
+  .scene-toolbar .small-icon{width:29px;height:29px;flex-shrink:0}
+  .viewport{flex:1 1 0;min-height:0}
+  .timeline-panel{flex:0 0 auto;min-width:0;padding:7px 8px;gap:5px}
+  .timeline-top{display:flex;flex-direction:column;align-items:stretch;gap:6px}
+  .timeline-controls{width:100%;justify-content:flex-start}
+  .timeline-actions{width:100%;display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .timeline-actions label{display:flex;align-items:center;gap:7px;font-size:9px}
+  .timeline-actions select{min-width:64px;padding:0 7px}
+  .keyframe-btn{min-width:0;flex:0 1 auto}
+  .timeline-ruler{margin-top:1px}
+  .timeline-scrub{height:17px}
+  .timeline-bottom{font-size:8px}
+  .inspector{
+    grid-column:1/-1;
+    grid-row:2;
+    min-height:0;
+    height:205px;
+    max-height:205px;
+    overflow:hidden;
+    display:flex;
+  }
+  .inspector-tabs{height:39px;flex:0 0 39px}
+  .layer-panel,.properties-panel{
+    min-height:0;
+    overflow-y:auto;
+    overscroll-behavior:contain;
+    padding:9px 12px 12px;
+  }
+  .properties-panel label{margin:12px 0}
+  .properties-panel input[type=range]{margin-top:8px}
+  .camera-control-card{margin:12px 0 10px}
+  .inspector-footer{height:25px;flex:0 0 25px;font-size:8px}
+}
+@media(max-width:390px){
+  .timeline-actions{gap:5px}
+  .keyframe-btn{font-size:8px;padding:0 5px}
+  .timeline-actions label{font-size:8px}
+  .time-readout{font-size:8px}
+  .scene-toolbar .format-chip{letter-spacing:0}
+}
