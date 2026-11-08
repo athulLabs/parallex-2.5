@@ -243,17 +243,16 @@ export default function App() {
     if (additions[0]) { setSelectedId(additions[0].id); setTab('properties'); }
   };
   const updateLayer = (id: string, patch: Partial<Layer>) => {
+    // Keep slider/drag updates live; commit one keyframe when the gesture ends.
     setLayers(prev => prev.map(layer => layer.id === id ? {...layer,...patch} : layer));
-    const transformKeys: (keyof Transform)[] = ['x','y','z','scale','rotation','opacity'];
-    if (keyframes.length && transformKeys.some(key => key in patch)) {
-      const snapshot=animatedLayers.map(layer=>layer.id===id?{...layer,...patch}:layer);
-      writeKeyframe(makeFrame(playhead,snapshot,animatedCamera));
-    }
   };
   const updateSelected = (patch: Partial<Layer>) => { if (selectedId) updateLayer(selectedId,patch); };
   const updateCamera = (patch:Partial<CameraTransform>) => {
     setCameraTransform(prev=>({...prev,...patch}));
-    if(keyframes.length) writeKeyframe(makeFrame(playhead,animatedLayers,{...animatedCamera,...patch}));
+  };
+  const commitCurrentKeyframe = () => {
+    if (!keyframes.length) return;
+    writeKeyframe(makeFrame(playhead,layers,cameraTransform));
   };
   const applyMask = (id: string, blob: Blob) => {
     const oldLayer = layers.find(layer => layer.id === id);
@@ -367,21 +366,21 @@ export default function App() {
         </div> : <div className="properties-panel">{selected ? <>
           <div className="panel-heading"><div><span className="eyebrow">SELECTED LAYER</span><strong>{selected.name}</strong></div><button className="danger-icon" title="Delete layer" onClick={()=>removeLayer(selected.id)}><Trash2 size={16}/></button></div>
           <label className="layer-name-field">Layer name<input type="text" value={selected.name} maxLength={64} onChange={e=>updateSelected({name:e.target.value})} placeholder="Name this layer"/></label>
-          <label>Position X <b>{selected.x.toFixed(2)}</b><input type="range" min="-3" max="3" step=".01" value={selected.x} onChange={e=>updateSelected({x:+e.target.value})}/></label>
-          <label>Position Y <b>{selected.y.toFixed(2)}</b><input type="range" min="-5" max="5" step=".01" value={selected.y} onChange={e=>updateSelected({y:+e.target.value})}/></label>
-          <label>Depth (Z) <b>{selected.z.toFixed(2)}</b><input type="range" min="-2" max="2" step=".02" value={selected.z} onChange={e=>updateSelected({z:+e.target.value})}/></label>
+          <label>Position X <b>{selected.x.toFixed(2)}</b><input type="range" min="-3" max="3" step=".01" value={selected.x} onChange={e=>updateSelected({x:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
+          <label>Position Y <b>{selected.y.toFixed(2)}</b><input type="range" min="-5" max="5" step=".01" value={selected.y} onChange={e=>updateSelected({y:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
+          <label>Depth (Z) <b>{selected.z.toFixed(2)}</b><input type="range" min="-2" max="2" step=".02" value={selected.z} onChange={e=>updateSelected({z:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
           <div className="depth-presets" aria-label="Layer depth presets">
             <button type="button" onClick={()=>updateSelected({z:-1.5})}>Background</button>
             <button type="button" onClick={()=>updateSelected({z:0})}>Midground</button>
             <button type="button" onClick={()=>updateSelected({z:1.5})}>Foreground</button>
           </div>
-          <label>Scale <b>{selected.scale.toFixed(2)}×</b><input type="range" min=".1" max="3" step=".01" value={selected.scale} onChange={e=>updateSelected({scale:+e.target.value})}/></label>
-          <label>Rotation <b>{selected.rotation}°</b><input type="range" min="-180" max="180" value={selected.rotation} onChange={e=>updateSelected({rotation:+e.target.value})}/></label>
-          <label>Opacity <b>{selected.opacity}%</b><input type="range" min="0" max="100" value={selected.opacity} onChange={e=>updateSelected({opacity:+e.target.value})}/></label>
+          <label>Scale <b>{selected.scale.toFixed(2)}×</b><input type="range" min=".1" max="3" step=".01" value={selected.scale} onChange={e=>updateSelected({scale:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
+          <label>Rotation <b>{selected.rotation}°</b><input type="range" min="-180" max="180" value={selected.rotation} onChange={e=>updateSelected({rotation:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
+          <label>Opacity <b>{selected.opacity}%</b><input type="range" min="0" max="100" value={selected.opacity} onChange={e=>updateSelected({opacity:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
           <div className="camera-control-card"><div><Camera size={14}/> Camera framing</div>
-            <label>Horizontal <b>{cameraTransform.x.toFixed(2)}</b><input type="range" min="-2" max="2" step=".01" value={cameraTransform.x} onChange={e=>updateCamera({x:+e.target.value})}/></label>
-            <label>Vertical <b>{cameraTransform.y.toFixed(2)}</b><input type="range" min="-3" max="3" step=".01" value={cameraTransform.y} onChange={e=>updateCamera({y:+e.target.value})}/></label>
-            <label>Camera zoom <b>{cameraTransform.zoom.toFixed(2)}×</b><input type="range" min=".5" max="2.5" step=".01" value={cameraTransform.zoom} onChange={e=>updateCamera({zoom:+e.target.value})}/></label>\n            <label>Camera distance <b>{(cameraTransform.z??20).toFixed(1)}</b><input type="range" min="12" max="32" step=".1" value={cameraTransform.z??20} onChange={e=>updateCamera({z:+e.target.value})}/></label></div>
+            <label>Horizontal <b>{cameraTransform.x.toFixed(2)}</b><input type="range" min="-2" max="2" step=".01" value={cameraTransform.x} onChange={e=>updateCamera({x:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
+            <label>Vertical <b>{cameraTransform.y.toFixed(2)}</b><input type="range" min="-3" max="3" step=".01" value={cameraTransform.y} onChange={e=>updateCamera({y:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
+            <label>Camera zoom <b>{cameraTransform.zoom.toFixed(2)}×</b><input type="range" min=".5" max="2.5" step=".01" value={cameraTransform.zoom} onChange={e=>updateCamera({zoom:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>\n            <label>Camera distance <b>{(cameraTransform.z??20).toFixed(1)}</b><input type="range" min="12" max="32" step=".1" value={cameraTransform.z??20} onChange={e=>updateCamera({z:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label></div>
           <button className="wide-secondary mask-open-btn" onClick={()=>setMaskLayerId(selected.id)}><Scan size={14}/> Open manual mask editor</button><button className="wide-secondary" onClick={()=>duplicateLayer(selected)}><Copy size={14}/> Duplicate layer</button>
         </> : <div className="layer-empty"><SlidersHorizontal size={22}/><b>No layer selected</b><span>Select a layer to edit its transforms.</span></div>}</div>}
         <div className="inspector-footer"><span className="live-dot"/> Drag layers in the canvas to reposition</div>
