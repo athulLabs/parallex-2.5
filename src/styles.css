@@ -30,3 +30,27 @@
 .layer-name-field input{display:block;width:100%;height:36px;margin-top:7px;padding:0 10px;border:1px solid #393a49;border-radius:7px;background:#171922;color:#ededf5;font-size:12px;outline:none}
 .layer-name-field input:focus{border-color:#8060ec;box-shadow:0 0 0 2px #8060ec22}
 @media(max-width:760px){.top-actions .mobile-hidden{display:none}.top-actions{gap:5px}.top-actions .icon-btn{display:grid;width:30px;height:30px}.top-actions .export-btn{padding:0 8px}.project-title{min-width:0}.project-title input{width:75px}}
+
+/* PARALLAX animation timeline */
+.timeline-panel{flex-shrink:0;border:1px solid #343543;border-radius:10px;background:#10121b;padding:9px 11px;display:flex;flex-direction:column;gap:7px;color:#a5a6b5}
+.timeline-top,.timeline-controls,.timeline-actions,.timeline-bottom{display:flex;align-items:center;justify-content:space-between;gap:9px}
+.timeline-controls{justify-content:flex-start}
+.timeline-icon{width:28px;height:27px;border:1px solid #333543;background:#1a1c27;border-radius:7px;display:grid;place-items:center;color:#a9aabd}
+.time-readout{font:10px 'DM Mono';color:#d0c8e7;white-space:nowrap}
+.timeline-actions{justify-content:flex-end}
+.keyframe-btn{height:29px;padding:0 9px;border:1px solid #604a9b;background:#29213e;color:#d4c5ff;border-radius:7px;display:flex;align-items:center;gap:5px;font-size:10px;white-space:nowrap}
+.keyframe-btn:disabled{opacity:.4}
+.timeline-actions label{display:flex;align-items:center;gap:5px;color:#8c8e9e;font-size:9px;white-space:nowrap}
+.timeline-actions select{height:27px;border:1px solid #363747;border-radius:6px;background:#1b1d28;color:#d7d5e2;padding:0 5px;font-size:10px}
+.timeline-ruler{display:flex;justify-content:space-between;color:#707285;font:8px 'DM Mono';padding:0 2px}
+.timeline-scrub{height:20px;position:relative;display:flex;align-items:center}
+.timeline-scrub input{position:relative;z-index:2;width:100%;margin:0;accent-color:#956fff}
+.keyframe-markers{position:absolute;inset:0;pointer-events:none}
+.keyframe-markers button{pointer-events:auto;position:absolute;top:5px;transform:translateX(-50%) rotate(45deg);width:9px;height:9px;padding:0;border:1px solid #e4d8ff;border-radius:2px;background:#936dff;z-index:3}
+.timeline-bottom{font:8px 'DM Mono';color:#74778b}
+.timeline-bottom span{display:flex;align-items:center;gap:5px}
+.camera-control-card{margin:20px 0 12px;padding:11px;border:1px solid #39344d;border-radius:9px;background:#171522}
+.camera-control-card>div{display:flex;align-items:center;gap:7px;color:#c8b8ff;font-size:11px;font-weight:700;margin-bottom:8px}
+.camera-control-card label{margin:12px 0!important}
+.camera-control-card input[type=range]{margin-top:8px!important}
+@media(max-width:760px){.timeline-panel{padding:7px 8px;gap:5px}.timeline-top{gap:5px}.timeline-actions{gap:5px}.keyframe-btn{height:27px;padding:0 6px;font-size:9px}.timeline-actions label{font-size:8px}.timeline-actions select{height:25px;font-size:9px}.timeline-bottom{font-size:7px}.time-readout{font-size:9px}.timeline-ruler{font-size:7px}.timeline-scrub{height:16px}}
