@@ -102,7 +102,24 @@ function Viewport({ layers, selectedId, onSelect, onMove }: {
     layers.forEach((layer, index) => {
       let mesh = meshes.current.get(layer.id);
       if (!mesh) {
-        const texture = new THREE.TextureLoader().load(layer.url, () => {
+        const material = new THREE.MeshBasicMaterial({ transparent: true, side: THREE.DoubleSide, depthWrite: false });
+        mesh = new THREE.Mesh(new THREE.PlaneGeometry(BOARD_W, BOARD_H), material);
+        mesh.userData.layerId = layer.id;
+        scene.add(mesh);
+        meshes.current.set(layer.id, mesh);
+      }
+      if (mesh.userData.sourceUrl !== layer.url) {
+        mesh.userData.sourceUrl = layer.url;
+        const material = mesh.material as THREE.MeshBasicMaterial;
+        material.map?.dispose();
+        new THREE.TextureLoader().load(layer.url, texture => {
+          if (!meshes.current.has(layer.id) || mesh!.userData.sourceUrl !== layer.url) {
+            texture.dispose();
+            return;
+          }
+          texture.colorSpace = THREE.SRGBColorSpace;
+          material.map = texture;
+          material.needsUpdate = true;
           const image = texture.image as HTMLImageElement;
           const imageAspect = image.width / Math.max(1, image.height);
           const boardAspect = BOARD_W / BOARD_H;
@@ -111,10 +128,6 @@ function Viewport({ layers, selectedId, onSelect, onMove }: {
           mesh!.geometry.dispose();
           mesh!.geometry = new THREE.PlaneGeometry(fitW, fitH);
         });
-        texture.colorSpace = THREE.SRGBColorSpace;
-        const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, side: THREE.DoubleSide, depthWrite: false });
-        mesh = new THREE.Mesh(new THREE.PlaneGeometry(BOARD_W, BOARD_H), material);
-        mesh.userData.layerId = layer.id; scene.add(mesh); meshes.current.set(layer.id, mesh);
       }
       mesh.position.set(layer.x, layer.y, layer.z);
       mesh.scale.setScalar(layer.scale);
@@ -185,7 +198,7 @@ export default function App() {
   const importFiles = (files: FileList | null) => {
     if (!files) return;
     const additions: Layer[] = Array.from(files).filter(file => file.type.startsWith('image/')).map(file => ({
-      id: uid(), name: (() => { const base=file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g,' ').trim(); return /^file\s+[a-f0-9]{12,}$/i.test(base) ? 'Image ' + (layers.length + 1) : (base || 'Image ' + (layers.length + 1)); })(), fileName: file.name,
+      id: uid(), name: (() => { const base=file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g,' ').trim(); return /^file[_\s-]*[a-f0-9]{12,}$/i.test(base) ? 'Image ' + (layers.length + 1) : (base || 'Image ' + (layers.length + 1)); })(), fileName: file.name,
       url: URL.createObjectURL(file), x: 0, y: 0, z: layers.length * 0.02,
       scale: 1, rotation: 0, visible: true, locked: false, opacity: 100, width: 0, height: 0
     }));
