@@ -223,10 +223,13 @@ export default function App() {
     const span=after.time-before.time, t=span<=0?0:Math.max(0,Math.min(1,(playhead-before.time)/span));
     return {x:before.camera.x+(after.camera.x-before.camera.x)*t,y:before.camera.y+(after.camera.y-before.camera.y)*t,zoom:before.camera.zoom+(after.camera.zoom-before.camera.zoom)*t};
   })();
-  const addKeyframe = () => {
-    const frame:Keyframe={id:uid(),time:Number(playhead.toFixed(2)),layers:Object.fromEntries(layers.map(layer=>[layer.id,{x:layer.x,y:layer.y,z:layer.z,scale:layer.scale,rotation:layer.rotation,opacity:layer.opacity}])),camera:{...cameraTransform}};
-    setKeyframes(prev=>[...prev.filter(item=>Math.abs(item.time-frame.time)>0.015),frame].sort((a,b)=>a.time-b.time));
-  };
+  const makeFrame = (time:number, layerSnapshot:Layer[]=animatedLayers, cameraSnapshot:CameraTransform=animatedCamera):Keyframe => ({
+    id:uid(),time:Number(time.toFixed(2)),
+    layers:Object.fromEntries(layerSnapshot.map(layer=>[layer.id,{x:layer.x,y:layer.y,z:layer.z,scale:layer.scale,rotation:layer.rotation,opacity:layer.opacity}])),
+    camera:{...cameraSnapshot}
+  });
+  const writeKeyframe = (frame:Keyframe) => setKeyframes(prev=>[...prev.filter(item=>Math.abs(item.time-frame.time)>0.015),frame].sort((a,b)=>a.time-b.time));
+  const addKeyframe = () => writeKeyframe(makeFrame(playhead));
   const playbackStart = useRef(0);
   useEffect(()=>{ if(tab==='properties') document.querySelector('.properties-panel')?.scrollTo({top:0,behavior:'smooth'}); },[tab,selectedId]);
   useEffect(()=>{ if(!playing)return; playbackStart.current=playhead; let raf=0,last=0,elapsed=0; const tick=(now:number)=>{if(!last)last=now;elapsed+=Math.min(.1,(now-last)/1000);last=now;const next=Math.min(duration,playbackStart.current+elapsed);setPlayhead(next);if(next>=duration){setPlaying(false);return;}raf=requestAnimationFrame(tick);};raf=requestAnimationFrame(tick);return()=>cancelAnimationFrame(raf);},[playing,duration]);
@@ -241,8 +244,19 @@ export default function App() {
     setLayers(prev => [...prev, ...additions]);
     if (additions[0]) { setSelectedId(additions[0].id); setTab('properties'); }
   };
-  const updateLayer = (id: string, patch: Partial<Layer>) => setLayers(prev => prev.map(layer => layer.id === id ? {...layer,...patch} : layer));
+  const updateLayer = (id: string, patch: Partial<Layer>) => {
+    setLayers(prev => prev.map(layer => layer.id === id ? {...layer,...patch} : layer));
+    const transformKeys: (keyof Transform)[] = ['x','y','z','scale','rotation','opacity'];
+    if (keyframes.length && transformKeys.some(key => key in patch)) {
+      const snapshot=animatedLayers.map(layer=>layer.id===id?{...layer,...patch}:layer);
+      writeKeyframe(makeFrame(playhead,snapshot,animatedCamera));
+    }
+  };
   const updateSelected = (patch: Partial<Layer>) => { if (selectedId) updateLayer(selectedId,patch); };
+  const updateCamera = (patch:Partial<CameraTransform>) => {
+    setCameraTransform(prev=>({...prev,...patch}));
+    if(keyframes.length) writeKeyframe(makeFrame(playhead,animatedLayers,{...animatedCamera,...patch}));
+  };
   const applyMask = (id: string, blob: Blob) => {
     const oldLayer = layers.find(layer => layer.id === id);
     if (!oldLayer) return;
@@ -362,9 +376,9 @@ export default function App() {
           <label>Rotation <b>{selected.rotation}°</b><input type="range" min="-180" max="180" value={selected.rotation} onChange={e=>updateSelected({rotation:+e.target.value})}/></label>
           <label>Opacity <b>{selected.opacity}%</b><input type="range" min="0" max="100" value={selected.opacity} onChange={e=>updateSelected({opacity:+e.target.value})}/></label>
           <div className="camera-control-card"><div><Camera size={14}/> Camera framing</div>
-            <label>Horizontal <b>{cameraTransform.x.toFixed(2)}</b><input type="range" min="-2" max="2" step=".01" value={cameraTransform.x} onChange={e=>setCameraTransform(p=>({...p,x:+e.target.value}))}/></label>
-            <label>Vertical <b>{cameraTransform.y.toFixed(2)}</b><input type="range" min="-3" max="3" step=".01" value={cameraTransform.y} onChange={e=>setCameraTransform(p=>({...p,y:+e.target.value}))}/></label>
-            <label>Camera zoom <b>{cameraTransform.zoom.toFixed(2)}×</b><input type="range" min=".5" max="2.5" step=".01" value={cameraTransform.zoom} onChange={e=>setCameraTransform(p=>({...p,zoom:+e.target.value}))}/></label></div>
+            <label>Horizontal <b>{cameraTransform.x.toFixed(2)}</b><input type="range" min="-2" max="2" step=".01" value={cameraTransform.x} onChange={e=>updateCamera({x:+e.target.value})}/></label>
+            <label>Vertical <b>{cameraTransform.y.toFixed(2)}</b><input type="range" min="-3" max="3" step=".01" value={cameraTransform.y} onChange={e=>updateCamera({y:+e.target.value})}/></label>
+            <label>Camera zoom <b>{cameraTransform.zoom.toFixed(2)}×</b><input type="range" min=".5" max="2.5" step=".01" value={cameraTransform.zoom} onChange={e=>updateCamera({zoom:+e.target.value})}/></label></div>
           <button className="wide-secondary mask-open-btn" onClick={()=>setMaskLayerId(selected.id)}><Scan size={14}/> Open manual mask editor</button><button className="wide-secondary" onClick={()=>duplicateLayer(selected)}><Copy size={14}/> Duplicate layer</button>
         </> : <div className="layer-empty"><SlidersHorizontal size={22}/><b>No layer selected</b><span>Select a layer to edit its transforms.</span></div>}</div>}
         <div className="inspector-footer"><span className="live-dot"/> Drag layers in the canvas to reposition</div>
