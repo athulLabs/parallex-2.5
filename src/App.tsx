@@ -90,7 +90,7 @@ function Viewport({ layers, selectedId, onSelect, onMove, cameraTransform }: {
     };
   }, []);
 
-  useEffect(() => { const camera=cameraRef.current; if(!camera) return; camera.position.set(cameraTransform.x,cameraTransform.y,cameraTransform.z ?? 20); camera.lookAt(cameraTransform.x,cameraTransform.y,0); camera.zoom=cameraTransform.zoom; camera.updateProjectionMatrix(); }, [cameraTransform]);
+  useEffect(() => { const camera=cameraRef.current; if(!camera) return; camera.position.set(cameraTransform.x,cameraTransform.y,cameraTransform.z ?? 20); camera.lookAt(0,0,0); camera.zoom=cameraTransform.zoom; camera.updateProjectionMatrix(); }, [cameraTransform]);
 
   useEffect(() => {
     const scene = sceneRef.current; if (!scene) return;
