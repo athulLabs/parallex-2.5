@@ -187,3 +187,8 @@
   .timeline-actions{justify-content:space-between}
   .viewport{min-height:240px}
 }
+
+.depth-presets{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin:-7px 0 13px}
+.depth-presets button{min-width:0;padding:7px 4px;border:1px solid #3a354f;border-radius:6px;background:#191724;color:#b9a9ed;font-size:9px}
+.depth-presets button:active{background:#30234e;border-color:#8b68ff}
+@media(max-width:760px){.depth-presets{gap:4px;margin:-3px 0 8px}.depth-presets button{padding:6px 2px;font-size:8px}}
