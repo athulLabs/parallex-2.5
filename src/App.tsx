@@ -33,7 +33,6 @@ function Viewport({ layers, selectedId, onSelect, onMove, cameraTransform }: {
   const moveRef = useRef(onMove);
   useEffect(() => { layersRef.current = layers; }, [layers]);
   useEffect(() => { moveRef.current = onMove; }, [onMove]);
-  useEffect(() => { const camera=cameraRef.current; if(!camera) return; camera.position.set(cameraTransform.x,cameraTransform.y,20); camera.lookAt(cameraTransform.x,cameraTransform.y,0); camera.zoom=cameraTransform.zoom; camera.updateProjectionMatrix(); }, [cameraTransform]);
 
   useEffect(() => {
     if (!host.current) return;
@@ -92,6 +91,8 @@ function Viewport({ layers, selectedId, onSelect, onMove, cameraTransform }: {
       if (host.current?.contains(renderer.domElement)) host.current.removeChild(renderer.domElement);
     };
   }, []);
+
+  useEffect(() => { const camera=cameraRef.current; if(!camera) return; camera.position.set(cameraTransform.x,cameraTransform.y,20); camera.lookAt(cameraTransform.x,cameraTransform.y,0); camera.zoom=cameraTransform.zoom; camera.updateProjectionMatrix(); }, [cameraTransform]);
 
   useEffect(() => {
     const scene = sceneRef.current; if (!scene) return;
@@ -329,7 +330,7 @@ export default function App() {
       </aside>
       <section className="editor-main">
         <div className="scene-toolbar"><div><span className="eyebrow">SCENE EDITOR</span><strong>Composition</strong></div><div className="toolbar-right"><span className="format-chip">9:16 PORTRAIT · 1080 × 1920</span><button className="small-icon" title="Fit composition"><Maximize2 size={15}/></button></div></div>
-        <Viewport layers={animatedLayers} selectedId={selectedId} onSelect={setSelectedId} onMove={(id,x,y)=>updateLayer(id,{x,y})} cameraTransform={animatedCamera}/>
+        <Viewport layers={animatedLayers} selectedId={selectedId} onSelect={id=>{setSelectedId(id);setTab('properties');}} onMove={(id,x,y)=>updateLayer(id,{x,y})} cameraTransform={animatedCamera}/>
 <div className="timeline-panel">
  <div className="timeline-top"><div className="timeline-controls">
   <button className="play-btn" onClick={()=>{if(playhead>=duration)setPlayhead(0);setPlaying(v=>!v);}} title={playing?"Pause":"Play"}>{playing?<Pause size={15}/>:<Play size={15} fill="currentColor"/>}</button>
