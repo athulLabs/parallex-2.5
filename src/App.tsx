@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import {
   Upload, Layers3, Image as ImageIcon, Move3D, SlidersHorizontal, Eye, EyeOff,
-  Lock, Unlock, Trash2, Copy, Plus, Play, Undo2, Redo2, Maximize2,
+  Lock, Unlock, Trash2, Copy, Plus, Play, Undo2, Redo2, Maximize2, Download, FolderOpen,
   ZoomIn, ZoomOut, RotateCcw, Film, Settings2
 } from 'lucide-react';
 
@@ -177,6 +177,7 @@ export default function App() {
   const [tab, setTab] = useState<'layers'|'properties'>('layers');
   const [projectName, setProjectName] = useState('Untitled Scene');
   const fileRef = useRef<HTMLInputElement>(null);
+  const projectFileRef = useRef<HTMLInputElement>(null);
   const selected = layers.find(layer => layer.id === selectedId) ?? null;
 
   const importFiles = (files: FileList | null) => {
@@ -199,12 +200,61 @@ export default function App() {
     const copy={...layer,id:uid(),name:layer.name+' copy',z:layer.z+0.08};
     setLayers(prev=>[...prev,copy]); setSelectedId(copy.id);
   };
+  const saveProject = async () => {
+    try {
+      const imageLayers = await Promise.all(layers.map(async layer => {
+        const response = await fetch(layer.url);
+        const blob = await response.blob();
+        const dataUrl = await new Promise<string>((resolve,reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result));
+          reader.onerror = () => reject(reader.error);
+          reader.readAsDataURL(blob);
+        });
+        const { url, ...metadata } = layer;
+        return { ...metadata, dataUrl };
+      }));
+      const payload = { format: 'PARALLAX_2_5', version: 1, projectName, layers: imageLayers };
+      const blob = new Blob([JSON.stringify(payload)], {type:'application/json'});
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = (projectName.trim() || 'parallax-project').replace(/[^a-z0-9-_]+/gi,'-') + '.parallax.json';
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+    } catch {
+      alert('Could not save this project. Try removing very large images and saving again.');
+    }
+  };
+  const loadProject = async (file: File) => {
+    try {
+      const payload = JSON.parse(await file.text());
+      if (payload.format !== 'PARALLAX_2_5' || !Array.isArray(payload.layers)) throw new Error('This is not a PARALLAX project file.');
+      const restored: Layer[] = payload.layers.map((item: any) => {
+        if (typeof item.dataUrl !== 'string' || typeof item.name !== 'string') throw new Error('Project contains an invalid image layer.');
+        const [header, encoded] = item.dataUrl.split(',');
+        const mime = header.match(/data:(.*?);base64/)?.[1] || 'image/png';
+        const binary = atob(encoded);
+        const bytes = Uint8Array.from(binary, char => char.charCodeAt(0));
+        const url = URL.createObjectURL(new Blob([bytes], {type:mime}));
+        const {dataUrl, ...metadata} = item;
+        return {...metadata, url, id:uid(), visible:item.visible !== false, locked:!!item.locked};
+      });
+      layers.forEach(layer => URL.revokeObjectURL(layer.url));
+      setLayers(restored);
+      setSelectedId(restored[0]?.id ?? null);
+      setProjectName(typeof payload.projectName === 'string' ? payload.projectName : 'Imported Scene');
+      setTab('layers');
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Could not open this project file.');
+    }
+  };
 
   return <main className="app-shell">
     <header className="topbar">
       <div className="brand"><div className="brand-mark">P</div><div><b>PARALLAX</b><small>2.5 CINEMATIC STUDIO</small></div></div>
       <div className="project-title"><input value={projectName} onChange={e=>setProjectName(e.target.value)} aria-label="Project name"/><span className="saved-dot"/><small>SESSION</small></div>
-      <div className="top-actions"><button className="icon-btn" title="Undo (coming soon)"><Undo2 size={17}/></button><button className="icon-btn" title="Redo (coming soon)"><Redo2 size={17}/></button><button className="export-btn" onClick={()=>alert('MP4 rendering is scheduled for a later milestone.')}><Film size={15}/> Export</button></div>
+      <div className="top-actions"><button className="icon-btn" title="Open PARALLAX project" onClick={()=>projectFileRef.current?.click()}><FolderOpen size={17}/></button><button className="icon-btn" title="Save project JSON" onClick={saveProject}><Download size={17}/></button><button className="icon-btn" title="Undo (coming soon)"><Undo2 size={17}/></button><button className="icon-btn" title="Redo (coming soon)"><Redo2 size={17}/></button><button className="export-btn" onClick={()=>alert('MP4 rendering is scheduled for a later milestone.')}><Film size={15}/> Export</button></div>
     </header>
     <div className="workspace">
       <aside className="left-rail">
@@ -242,6 +292,6 @@ export default function App() {
         <div className="inspector-footer"><span className="live-dot"/> Drag layers in the canvas to reposition</div>
       </aside>
     </div>
-    <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" multiple hidden onChange={e=>{importFiles(e.target.files);e.target.value='';}}/>
+    <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" multiple hidden onChange={e=>{importFiles(e.target.files);e.target.value='';}}/><input ref={projectFileRef} type="file" accept=".json,.parallax.json,application/json" hidden onChange={e=>{const file=e.target.files?.[0];if(file)void loadProject(file);e.target.value='';}}/>
   </main>;
 }
