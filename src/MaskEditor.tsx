@@ -71,14 +71,15 @@ export default function MaskEditor({ src, name, onApply, onClose }: Props) {
         ctx.globalCompositeOperation = 'destination-out';
         ctx.strokeStyle = 'rgba(0,0,0,1)'; ctx.stroke();
       } else {
-        ctx.globalCompositeOperation = 'destination-out';
-        ctx.strokeStyle = 'rgba(0,0,0,1)'; ctx.stroke();
-        ctx.globalCompositeOperation = 'source-over';
         const original = originalRef.current;
         if (original) {
-          ctx.save(); ctx.beginPath(); ctx.lineCap='round'; ctx.lineJoin='round';
-          ctx.lineWidth=size; ctx.moveTo(from.x,from.y); ctx.lineTo(x,y); ctx.strokeStyle='white'; ctx.stroke();
-          ctx.globalCompositeOperation='source-in'; ctx.drawImage(original,0,0); ctx.restore();
+          const distance = Math.hypot(x-from.x,y-from.y);
+          const steps = Math.max(1,Math.ceil(distance/Math.max(2,size*0.18)));
+          for(let i=0;i<=steps;i++){
+            const px=from.x+(x-from.x)*i/steps, py=from.y+(y-from.y)*i/steps;
+            ctx.save(); ctx.beginPath(); ctx.arc(px,py,size/2,0,Math.PI*2); ctx.clip();
+            ctx.globalCompositeOperation='source-over'; ctx.drawImage(original,0,0); ctx.restore();
+          }
         }
       }
     } else {
