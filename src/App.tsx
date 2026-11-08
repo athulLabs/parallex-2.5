@@ -208,12 +208,13 @@ export default function App() {
   const updateLayer = (id: string, patch: Partial<Layer>) => setLayers(prev => prev.map(layer => layer.id === id ? {...layer,...patch} : layer));
   const updateSelected = (patch: Partial<Layer>) => { if (selectedId) updateLayer(selectedId,patch); };
   const applyMask = (id: string, blob: Blob) => {
+    const oldLayer = layers.find(layer => layer.id === id);
+    if (!oldLayer) return;
     const url = URL.createObjectURL(blob);
-    setLayers(prev => prev.map(layer => {
-      if (layer.id !== id) return layer;
-      URL.revokeObjectURL(layer.url);
-      return { ...layer, url, fileName: layer.fileName.replace(/\\.[^.]+$/, '') + '-masked.png' };
-    }));
+    URL.revokeObjectURL(oldLayer.url);
+    setLayers(prev => prev.map(layer => layer.id === id
+      ? { ...layer, url, fileName: layer.name + '-masked.png' }
+      : layer));
     setMaskLayerId(null);
   };
   const removeLayer = (id: string) => {
@@ -278,7 +279,7 @@ export default function App() {
     <header className="topbar">
       <div className="brand"><div className="brand-mark">P</div><div><b>PARALLAX</b><small>2.5 CINEMATIC STUDIO</small></div></div>
       <div className="project-title"><input value={projectName} onChange={e=>setProjectName(e.target.value)} aria-label="Project name"/><span className="saved-dot"/><small>SESSION</small></div>
-      <div className="top-actions"><button className="icon-btn" title="Open PARALLAX project" onClick={()=>projectFileRef.current?.click()}><FolderOpen size={17}/></button><button className="icon-btn" title="Save project JSON" onClick={saveProject}><Download size={17}/></button><button className="icon-btn" title="Undo (coming soon)"><Undo2 size={17}/></button><button className="icon-btn" title="Redo (coming soon)"><Redo2 size={17}/></button><button className="export-btn" onClick={()=>alert('MP4 rendering is scheduled for a later milestone.')}><Film size={15}/> Export</button></div>
+      <div className="top-actions"><button className="icon-btn" title="Open PARALLAX project" onClick={()=>projectFileRef.current?.click()}><FolderOpen size={17}/></button><button className="icon-btn" title="Save project JSON" onClick={saveProject}><Download size={17}/></button><button className="icon-btn mobile-hidden" title="Undo (coming soon)"><Undo2 size={17}/></button><button className="icon-btn mobile-hidden" title="Redo (coming soon)"><Redo2 size={17}/></button><button className="export-btn" onClick={()=>alert('MP4 rendering is scheduled for a later milestone.')}><Film size={15}/> Export</button></div>
     </header>
     <div className="workspace">
       <aside className="left-rail">
@@ -305,6 +306,7 @@ export default function App() {
             </div>)}</div>}
         </div> : <div className="properties-panel">{selected ? <>
           <div className="panel-heading"><div><span className="eyebrow">SELECTED LAYER</span><strong>{selected.name}</strong></div><button className="danger-icon" title="Delete layer" onClick={()=>removeLayer(selected.id)}><Trash2 size={16}/></button></div>
+          <label className="layer-name-field">Layer name<input type="text" value={selected.name} maxLength={64} onChange={e=>updateSelected({name:e.target.value})} placeholder="Name this layer"/></label>
           <label>Position X <b>{selected.x.toFixed(2)}</b><input type="range" min="-3" max="3" step=".01" value={selected.x} onChange={e=>updateSelected({x:+e.target.value})}/></label>
           <label>Position Y <b>{selected.y.toFixed(2)}</b><input type="range" min="-5" max="5" step=".01" value={selected.y} onChange={e=>updateSelected({y:+e.target.value})}/></label>
           <label>Depth (Z) <b>{selected.z.toFixed(2)}</b><input type="range" min="-2" max="2" step=".02" value={selected.z} onChange={e=>updateSelected({z:+e.target.value})}/></label>
