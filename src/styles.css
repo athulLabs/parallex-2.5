@@ -111,3 +111,79 @@
   .time-readout{font-size:8px}
   .scene-toolbar .format-chip{letter-spacing:0}
 }
+
+
+/* Mobile: give the composition the space; keep timeline and inspector compact */
+@media(max-width:760px){
+  .workspace{
+    grid-template-columns:54px minmax(0,1fr);
+    grid-template-rows:minmax(0,1fr) 145px;
+  }
+  .editor-main{
+    grid-column:2;
+    grid-row:1;
+    min-height:0;
+    padding:7px 8px 6px;
+    gap:6px;
+  }
+  .scene-toolbar{min-height:32px;flex:0 0 32px}
+  .viewport{flex:1 1 auto;min-height:260px}
+  .timeline-panel{
+    flex:0 0 auto;
+    padding:6px 8px;
+    gap:4px;
+  }
+  .timeline-top{
+    display:grid;
+    grid-template-columns:auto minmax(0,1fr);
+    align-items:center;
+    gap:5px;
+  }
+  .timeline-controls{gap:6px;min-width:0}
+  .timeline-controls .play-btn{width:29px;height:29px;flex:0 0 29px}
+  .timeline-icon{width:27px;height:27px;flex:0 0 27px}
+  .time-readout{font-size:8px}
+  .timeline-actions{
+    display:flex;
+    justify-content:flex-end;
+    gap:6px;
+    min-width:0;
+  }
+  .keyframe-btn{height:27px;padding:0 6px;font-size:8px}
+  .timeline-actions label{font-size:8px;gap:4px}
+  .timeline-actions select{height:26px;min-width:53px;font-size:9px;padding:0 4px}
+  .timeline-ruler{font-size:7px;margin-top:0}
+  .timeline-scrub{height:14px}
+  .timeline-bottom{font-size:7px}
+  .inspector{
+    grid-column:1/-1;
+    grid-row:2;
+    height:145px;
+    min-height:145px;
+    max-height:145px;
+    overflow:hidden;
+  }
+  .inspector-tabs{height:35px;min-height:35px;flex:0 0 35px}
+  .layer-panel,.properties-panel{
+    min-height:0;
+    padding:6px 12px;
+    overflow-y:auto;
+  }
+  .panel-heading{margin-bottom:5px}
+  .layer-empty{min-height:55px;padding:4px;gap:3px}
+  .layer-empty svg{width:17px;height:17px}
+  .layer-empty b{font-size:10px}
+  .layer-empty span{font-size:8px}
+  .layer-empty button{padding:5px 8px;font-size:8px;margin-top:1px}
+  .inspector-footer{height:22px;min-height:22px;flex:0 0 22px;font-size:7px}
+  .properties-panel label{margin:8px 0;font-size:9px}
+  .properties-panel input[type=range]{margin-top:5px}
+  .camera-control-card{margin:8px 0;padding:8px}
+}
+@media(max-width:390px){
+  .workspace{grid-template-rows:minmax(0,1fr) 135px}
+  .inspector{height:135px;min-height:135px;max-height:135px}
+  .timeline-top{grid-template-columns:1fr}
+  .timeline-actions{justify-content:space-between}
+  .viewport{min-height:240px}
+}
