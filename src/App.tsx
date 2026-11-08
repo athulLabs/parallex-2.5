@@ -38,7 +38,7 @@ function Viewport({ layers, selectedId, onSelect, onMove, cameraTransform }: {
     if (!host.current) return;
     const scene = new THREE.Scene();
     scene.background = new THREE.Color('#0e1018');
-    const camera = new THREE.OrthographicCamera(-4, 4, 7.2, -7.2, 0.1, 100);
+    const camera = new THREE.PerspectiveCamera(20.4, 1, 0.1, 100);
     camera.position.set(0, 0, 20);
     camera.lookAt(0, 0, 0);
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
@@ -54,13 +54,13 @@ function Viewport({ layers, selectedId, onSelect, onMove, cameraTransform }: {
       new THREE.EdgesGeometry(new THREE.PlaneGeometry(BOARD_W, BOARD_H)),
       new THREE.LineBasicMaterial({ color: 0x77718f, transparent: true, opacity: 0.75 })
     );
-    frame.position.z = -4;
+    frame.position.z = -0.05;
     board.add(frame);
     const guides = new THREE.Group();
     const guideMaterial = new THREE.LineDashedMaterial({ color: 0x383448, dashSize: 0.08, gapSize: 0.08, transparent: true, opacity: 0.65 });
     const guideGeo = new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(-BOARD_W/2, 0, -3.95), new THREE.Vector3(BOARD_W/2, 0, -3.95),
-      new THREE.Vector3(0, -BOARD_H/2, -3.95), new THREE.Vector3(0, BOARD_H/2, -3.95)
+      new THREE.Vector3(-BOARD_W/2, 0, -0.04), new THREE.Vector3(BOARD_W/2, 0, -0.04),
+      new THREE.Vector3(0, -BOARD_H/2, -0.04), new THREE.Vector3(0, BOARD_H/2, -0.04)
     ]);
     const guideLines = new THREE.LineSegments(guideGeo, guideMaterial);
     guideLines.computeLineDistances(); guides.add(guideLines); board.add(guides); scene.add(board);
@@ -69,10 +69,8 @@ function Viewport({ layers, selectedId, onSelect, onMove, cameraTransform }: {
     const resize = () => {
       if (!host.current) return;
       const w = Math.max(1, host.current.clientWidth), h = Math.max(1, host.current.clientHeight);
-      const aspect = w / h;
-      const viewH = Math.max(BOARD_H * 1.08, (BOARD_W * 1.08) / aspect);
-      camera.left = -viewH * aspect / 2; camera.right = viewH * aspect / 2;
-      camera.top = viewH / 2; camera.bottom = -viewH / 2; camera.updateProjectionMatrix();
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
       renderer.setSize(w, h);
     };
     const observer = new ResizeObserver(resize); observer.observe(host.current); resize();
@@ -185,7 +183,7 @@ function Viewport({ layers, selectedId, onSelect, onMove, cameraTransform }: {
     <div className="viewport-actions">
       <button title="Zoom in" onClick={() => { const c=cameraRef.current; if(c){c.zoom=Math.min(2.5,c.zoom+0.15);c.updateProjectionMatrix();} }}><ZoomIn size={16}/></button>
       <button title="Zoom out" onClick={() => { const c=cameraRef.current; if(c){c.zoom=Math.max(.5,c.zoom-0.15);c.updateProjectionMatrix();} }}><ZoomOut size={16}/></button>
-      <button title="Reset view" onClick={() => { const c=cameraRef.current; if(c){c.zoom=1;c.position.set(0,0,20);c.updateProjectionMatrix();} }}><RotateCcw size={16}/></button>
+      <button title="Reset view" onClick={() => { const c=cameraRef.current; if(c){c.zoom=1;c.position.set(0,0,20);c.lookAt(0,0,0);c.updateProjectionMatrix();} }}><RotateCcw size={16}/></button>
     </div>
   </div>;
 }
@@ -372,6 +370,11 @@ export default function App() {
           <label>Position X <b>{selected.x.toFixed(2)}</b><input type="range" min="-3" max="3" step=".01" value={selected.x} onChange={e=>updateSelected({x:+e.target.value})}/></label>
           <label>Position Y <b>{selected.y.toFixed(2)}</b><input type="range" min="-5" max="5" step=".01" value={selected.y} onChange={e=>updateSelected({y:+e.target.value})}/></label>
           <label>Depth (Z) <b>{selected.z.toFixed(2)}</b><input type="range" min="-2" max="2" step=".02" value={selected.z} onChange={e=>updateSelected({z:+e.target.value})}/></label>
+          <div className="depth-presets" aria-label="Layer depth presets">
+            <button type="button" onClick={()=>updateSelected({z:-1.5})}>Background</button>
+            <button type="button" onClick={()=>updateSelected({z:0})}>Midground</button>
+            <button type="button" onClick={()=>updateSelected({z:1.5})}>Foreground</button>
+          </div>
           <label>Scale <b>{selected.scale.toFixed(2)}×</b><input type="range" min=".1" max="3" step=".01" value={selected.scale} onChange={e=>updateSelected({scale:+e.target.value})}/></label>
           <label>Rotation <b>{selected.rotation}°</b><input type="range" min="-180" max="180" value={selected.rotation} onChange={e=>updateSelected({rotation:+e.target.value})}/></label>
           <label>Opacity <b>{selected.opacity}%</b><input type="range" min="0" max="100" value={selected.opacity} onChange={e=>updateSelected({opacity:+e.target.value})}/></label>
