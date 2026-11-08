@@ -26,7 +26,7 @@ function Viewport({ layers, selectedId, onSelect, onMove, cameraTransform }: {
   const host = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
-  const cameraRef = useRef<THREE.OrthographicCamera | null>(null);
+  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const meshes = useRef(new Map<string, THREE.Mesh>());
   const drag = useRef<{id:string; startX:number; startY:number; originX:number; originY:number; moved:boolean}|null>(null);
   const layersRef = useRef(layers);
