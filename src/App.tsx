@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
+import MaskEditor from './MaskEditor';
 import {
   Upload, Layers3, Image as ImageIcon, Move3D, SlidersHorizontal, Eye, EyeOff,
   Lock, Unlock, Trash2, Copy, Plus, Play, Undo2, Redo2, Maximize2, Download, FolderOpen,
-  ZoomIn, ZoomOut, RotateCcw, Film, Settings2
+  ZoomIn, ZoomOut, RotateCcw, Film, Settings2, Scan
 } from 'lucide-react';
 
 type Layer = {
@@ -176,6 +177,7 @@ export default function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [tab, setTab] = useState<'layers'|'properties'>('layers');
   const [projectName, setProjectName] = useState('Untitled Scene');
+  const [maskLayerId, setMaskLayerId] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const projectFileRef = useRef<HTMLInputElement>(null);
   const selected = layers.find(layer => layer.id === selectedId) ?? null;
@@ -183,7 +185,7 @@ export default function App() {
   const importFiles = (files: FileList | null) => {
     if (!files) return;
     const additions: Layer[] = Array.from(files).filter(file => file.type.startsWith('image/')).map(file => ({
-      id: uid(), name: file.name.replace(/\.[^.]+$/, ''), fileName: file.name,
+      id: uid(), name: (() => { const base=file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g,' ').trim(); return /^file\s+[a-f0-9]{12,}$/i.test(base) ? 'Image ' + (layers.length + 1) : (base || 'Image ' + (layers.length + 1)); })(), fileName: file.name,
       url: URL.createObjectURL(file), x: 0, y: 0, z: layers.length * 0.02,
       scale: 1, rotation: 0, visible: true, locked: false, opacity: 100, width: 0, height: 0
     }));
@@ -192,6 +194,15 @@ export default function App() {
   };
   const updateLayer = (id: string, patch: Partial<Layer>) => setLayers(prev => prev.map(layer => layer.id === id ? {...layer,...patch} : layer));
   const updateSelected = (patch: Partial<Layer>) => { if (selectedId) updateLayer(selectedId,patch); };
+  const applyMask = (id: string, blob: Blob) => {
+    const url = URL.createObjectURL(blob);
+    setLayers(prev => prev.map(layer => {
+      if (layer.id !== id) return layer;
+      URL.revokeObjectURL(layer.url);
+      return { ...layer, url, fileName: layer.fileName.replace(/\\.[^.]+$/, '') + '-masked.png' };
+    }));
+    setMaskLayerId(null);
+  };
   const removeLayer = (id: string) => {
     setLayers(prev => { const found=prev.find(layer=>layer.id===id); if(found) URL.revokeObjectURL(found.url); return prev.filter(layer=>layer.id!==id); });
     if(selectedId===id) setSelectedId(null);
@@ -287,11 +298,12 @@ export default function App() {
           <label>Scale <b>{selected.scale.toFixed(2)}×</b><input type="range" min=".1" max="3" step=".01" value={selected.scale} onChange={e=>updateSelected({scale:+e.target.value})}/></label>
           <label>Rotation <b>{selected.rotation}°</b><input type="range" min="-180" max="180" value={selected.rotation} onChange={e=>updateSelected({rotation:+e.target.value})}/></label>
           <label>Opacity <b>{selected.opacity}%</b><input type="range" min="0" max="100" value={selected.opacity} onChange={e=>updateSelected({opacity:+e.target.value})}/></label>
-          <button className="wide-secondary" onClick={()=>duplicateLayer(selected)}><Copy size={14}/> Duplicate layer</button>
+          <button className="wide-secondary mask-open-btn" onClick={()=>setMaskLayerId(selected.id)}><Scan size={14}/> Open manual mask editor</button><button className="wide-secondary" onClick={()=>duplicateLayer(selected)}><Copy size={14}/> Duplicate layer</button>
         </> : <div className="layer-empty"><SlidersHorizontal size={22}/><b>No layer selected</b><span>Select a layer to edit its transforms.</span></div>}</div>}
         <div className="inspector-footer"><span className="live-dot"/> Drag layers in the canvas to reposition</div>
       </aside>
     </div>
+    {maskLayerId && layers.find(layer=>layer.id===maskLayerId) && <MaskEditor src={layers.find(layer=>layer.id===maskLayerId)!.url} name={layers.find(layer=>layer.id===maskLayerId)!.name} onApply={blob=>applyMask(maskLayerId,blob)} onClose={()=>setMaskLayerId(null)}/>}
     <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" multiple hidden onChange={e=>{importFiles(e.target.files);e.target.value='';}}/><input ref={projectFileRef} type="file" accept=".json,.parallax.json,application/json" hidden onChange={e=>{const file=e.target.files?.[0];if(file)void loadProject(file);e.target.value='';}}/>
   </main>;
 }
