@@ -5,7 +5,7 @@ import {
   Upload, Layers3, Image as ImageIcon, Move3D, SlidersHorizontal, Eye, EyeOff,
   Lock, Unlock, Trash2, Copy, Plus, Play, Undo2, Redo2, Maximize2, Download, FolderOpen,
   ZoomIn, ZoomOut, RotateCcw, Film, Settings2, Scan, Pause, CircleDot, SkipBack, Camera, KeyRound
-, Waves} from 'lucide-react';
+, Waves, Wind} from 'lucide-react';
 
 type Transform = { x:number; y:number; z:number; scale:number; rotation:number; opacity:number };
 type CameraTransform = { x:number; y:number; zoom:number; z:number };
