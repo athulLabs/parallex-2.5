@@ -102,8 +102,8 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, cameraTrans
     const motionClock = new THREE.Clock();
     const render = () => {
       frameId = requestAnimationFrame(render);
-      const time = motionClock.getElapsedTime();
       const delta=Math.min(motionClock.getDelta(),.04);
+      const time=motionClock.elapsedTime;
       const fx=atmosphereRef.current;
       const wind=windRef.current;
       cloudFx.points.visible=fx.clouds; mistFx.points.visible=fx.mist; dustFx.points.visible=fx.dust;
