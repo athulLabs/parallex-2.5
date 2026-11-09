@@ -199,26 +199,30 @@ export default function App() {
   const [playing, setPlaying] = useState(false);
   const [keyframes, setKeyframes] = useState<Keyframe[]>([]);
   const [cameraTransform, setCameraTransform] = useState<CameraTransform>({x:0,y:0,zoom:1,z:20});
+  const [liveEditTime, setLiveEditTime] = useState<number | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const projectFileRef = useRef<HTMLInputElement>(null);
   const selected = layers.find(layer => layer.id === selectedId) ?? null;
   const animatedLayers = layers.map(layer => {
-    if (!keyframes.length) return layer;
+    if (!keyframes.length || (liveEditTime !== null && Math.abs(playhead-liveEditTime)<0.02)) return layer;
     const frames=[...keyframes].sort((a,b)=>a.time-b.time);
     const before=[...frames].reverse().find(frame=>frame.time<=playhead) ?? frames[0];
     const after=frames.find(frame=>frame.time>=playhead) ?? frames[frames.length-1];
     const a=before.layers[layer.id], b=after.layers[layer.id];
     if(!a && !b) return layer; if(!a) return {...layer,...b}; if(!b) return {...layer,...a};
-    const span=after.time-before.time, t=span<=0?0:Math.max(0,Math.min(1,(playhead-before.time)/span));
+    const span=after.time-before.time, raw=span<=0?0:Math.max(0,Math.min(1,(playhead-before.time)/span));
+    const t=raw*raw*(3-2*raw); // smoothstep easing avoids abrupt starts/stops
     const mix=(key:keyof Transform)=>a[key]+(b[key]-a[key])*t;
-    return {...layer,x:mix('x'),y:mix('y'),z:mix('z'),scale:mix('scale'),rotation:mix('rotation'),opacity:mix('opacity')};
+    const rotationDelta=THREE.MathUtils.euclideanModulo(b.rotation-a.rotation+180,360)-180;
+    return {...layer,x:mix('x'),y:mix('y'),z:mix('z'),scale:mix('scale'),rotation:a.rotation+rotationDelta*t,opacity:mix('opacity')};
   });
   const animatedCamera = (() => {
-    if(!keyframes.length) return cameraTransform;
+    if(!keyframes.length || (liveEditTime !== null && Math.abs(playhead-liveEditTime)<0.02)) return cameraTransform;
     const frames=[...keyframes].sort((a,b)=>a.time-b.time);
     const before=[...frames].reverse().find(frame=>frame.time<=playhead) ?? frames[0];
     const after=frames.find(frame=>frame.time>=playhead) ?? frames[frames.length-1];
-    const span=after.time-before.time, t=span<=0?0:Math.max(0,Math.min(1,(playhead-before.time)/span));
+    const span=after.time-before.time, raw=span<=0?0:Math.max(0,Math.min(1,(playhead-before.time)/span));
+    const t=raw*raw*(3-2*raw);
     return {x:before.camera.x+(after.camera.x-before.camera.x)*t,y:before.camera.y+(after.camera.y-before.camera.y)*t,zoom:before.camera.zoom+(after.camera.zoom-before.camera.zoom)*t,z:(before.camera.z??20)+((after.camera.z??20)-(before.camera.z??20))*t};
   })();
   const makeFrame = (time:number, layerSnapshot:Layer[]=animatedLayers, cameraSnapshot:CameraTransform=animatedCamera):Keyframe => ({
@@ -243,23 +247,17 @@ export default function App() {
     if (additions[0]) { setSelectedId(additions[0].id); setTab('properties'); }
   };
   const updateLayer = (id: string, patch: Partial<Layer>) => {
+    setLiveEditTime(playhead);
     setLayers(prev => prev.map(layer => layer.id === id ? {...layer,...patch} : layer));
-    // When animation already exists, update/replace the keyframe at the current
-    // playhead so the animated preview follows the slider continuously.
-    // writeKeyframe replaces a frame at this timestamp instead of adding spam.
-    if (keyframes.length) {
-      const snapshot=animatedLayers.map(layer=>layer.id===id?{...layer,...patch}:layer);
-      writeKeyframe(makeFrame(playhead,snapshot,animatedCamera));
-    }
   };
   const updateSelected = (patch: Partial<Layer>) => { if (selectedId) updateLayer(selectedId,patch); };
   const updateCamera = (patch:Partial<CameraTransform>) => {
+    setLiveEditTime(playhead);
     setCameraTransform(prev=>({...prev,...patch}));
-    if (keyframes.length) writeKeyframe(makeFrame(playhead,animatedLayers,{...animatedCamera,...patch}));
   };
   const commitCurrentKeyframe = () => {
-    if (!keyframes.length) return;
-    writeKeyframe(makeFrame(playhead,layers,cameraTransform));
+    if (keyframes.length || liveEditTime !== null) writeKeyframe(makeFrame(playhead,layers,cameraTransform));
+    setLiveEditTime(null);
   };
   const applyMask = (id: string, blob: Blob) => {
     const oldLayer = layers.find(layer => layer.id === id);
@@ -372,7 +370,7 @@ export default function App() {
             </div>)}</div>}
         </div> : <div className="properties-panel">{selected ? <>
           <div className="panel-heading"><div><span className="eyebrow">SELECTED LAYER</span><strong>{selected.name}</strong></div><button className="danger-icon" title="Delete layer" onClick={()=>removeLayer(selected.id)}><Trash2 size={16}/></button></div>
-          <label className="layer-name-field">Layer name<input type="text" value={selected.name} maxLength={64} onChange={e=>updateSelected({name:e.target.value})} placeholder="Name this layer"/></label>
+          <label className="layer-name-field">Layer name<input type="text" value={selected.name} maxLength={64} onInput={e=>updateSelected({name:e.target.value})} placeholder="Name this layer"/></label>
           <label>Position X <b>{selected.x.toFixed(2)}</b><input type="range" min="-3" max="3" step=".01" value={selected.x} onChange={e=>updateSelected({x:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
           <label>Position Y <b>{selected.y.toFixed(2)}</b><input type="range" min="-5" max="5" step=".01" value={selected.y} onChange={e=>updateSelected({y:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
           <label>Depth (Z) <b>{selected.z.toFixed(2)}</b><input type="range" min="-2" max="2" step=".02" value={selected.z} onChange={e=>updateSelected({z:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
@@ -385,7 +383,7 @@ export default function App() {
           <label>Rotation <b>{selected.rotation}°</b><input type="range" min="-180" max="180" value={selected.rotation} onChange={e=>updateSelected({rotation:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
           <label>Opacity <b>{selected.opacity}%</b><input type="range" min="0" max="100" value={selected.opacity} onChange={e=>updateSelected({opacity:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
           <div className="camera-control-card"><div><Camera size={14}/> Camera framing</div>
-            <label>Horizontal <b>{cameraTransform.x.toFixed(2)}</b><input type="range" min="-2" max="2" step=".01" value={cameraTransform.x} onChange={e=>updateCamera({x:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
+            <label>Horizontal <b>{cameraTransform.x.toFixed(2)}</b><input type="range" min="-2" max="2" step=".01" value={cameraTransform.x} onInput={e=>updateCamera({x:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
             <label>Vertical <b>{cameraTransform.y.toFixed(2)}</b><input type="range" min="-3" max="3" step=".01" value={cameraTransform.y} onChange={e=>updateCamera({y:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
             <label>Camera zoom <b>{cameraTransform.zoom.toFixed(2)}×</b><input type="range" min=".5" max="2.5" step=".01" value={cameraTransform.zoom} onChange={e=>updateCamera({zoom:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>\n            <label>Camera distance <b>{(cameraTransform.z??20).toFixed(1)}</b><input type="range" min="12" max="32" step=".1" value={cameraTransform.z??20} onChange={e=>updateCamera({z:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label></div>
           <button className="wide-secondary mask-open-btn" onClick={()=>setMaskLayerId(selected.id)}><Scan size={14}/> Open manual mask editor</button><button className="wide-secondary" onClick={()=>duplicateLayer(selected)}><Copy size={14}/> Duplicate layer</button>
