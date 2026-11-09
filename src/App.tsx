@@ -10,6 +10,8 @@ import {
 type Transform = { x:number; y:number; z:number; scale:number; rotation:number; opacity:number };
 type CameraTransform = { x:number; y:number; zoom:number; z:number };
 type Keyframe = { id:string; time:number; layers:Record<string,Transform>; camera:CameraTransform };
+type EnvironmentPreset = 'divine'|'sunset'|'night'|'storm'|'temple'|'cosmic';
+type EnvironmentSettings = { preset: EnvironmentPreset; intensity:number; horizon:number; stars:boolean; };
 type Layer = {
   id: string; name: string; url: string; fileName: string;
   x: number; y: number; z: number; scale: number; rotation: number;
@@ -20,9 +22,9 @@ const uid = () => Math.random().toString(36).slice(2, 10);
 const BOARD_W = 4.05;
 const BOARD_H = 7.2;
 
-function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, cameraTransform, playing, windStrength, windDirection, atmosphere }: {
+function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, cameraTransform, playing, windStrength, windDirection, atmosphere, environment }: {
   layers: Layer[]; selectedId: string | null; onSelect: (id: string) => void;
-  onMove: (id: string, x: number, y: number) => void; onMoveEnd: () => void; cameraTransform: CameraTransform; playing: boolean; windStrength: number; windDirection: number; atmosphere: {clouds:boolean;mist:boolean;dust:boolean;intensity:number};
+  onMove: (id: string, x: number, y: number) => void; onMoveEnd: () => void; cameraTransform: CameraTransform; playing: boolean; windStrength: number; windDirection: number; atmosphere: {clouds:boolean;mist:boolean;dust:boolean;intensity:number}; environment: EnvironmentSettings;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -45,6 +47,15 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, cameraTrans
     if (!host.current) return;
     const scene = new THREE.Scene();
     scene.background = new THREE.Color('#0e1018');
+    const skyCanvas=document.createElement('canvas'); skyCanvas.width=512; skyCanvas.height=1024;
+    const skyContext=skyCanvas.getContext('2d')!;
+    const skyTexture=new THREE.CanvasTexture(skyCanvas); skyTexture.colorSpace=THREE.SRGBColorSpace;
+    const skyMaterial=new THREE.MeshBasicMaterial({map:skyTexture,depthWrite:false,side:THREE.DoubleSide});
+    const skyMesh=new THREE.Mesh(new THREE.PlaneGeometry(100,100),skyMaterial); skyMesh.position.set(0,0,-12); scene.add(skyMesh);
+    const starPositions=new Float32Array(420*3); for(let i=0;i<420;i++){starPositions[i*3]=(Math.random()-.5)*80;starPositions[i*3+1]=(Math.random()-.5)*90;starPositions[i*3+2]=-11.8;}
+    const starGeometry=new THREE.BufferGeometry(); starGeometry.setAttribute('position',new THREE.BufferAttribute(starPositions,3));
+    const starMaterial=new THREE.PointsMaterial({color:0xe8e5ff,size:.075,transparent:true,opacity:.75,depthWrite:false});
+    const stars=new THREE.Points(starGeometry,starMaterial); scene.add(stars);
     const camera = new THREE.PerspectiveCamera(20.4, 1, 0.1, 100);
     camera.position.set(0, 0, 20);
     camera.lookAt(0, 0, 0);
@@ -147,7 +158,7 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, cameraTrans
         material.map?.dispose(); material.dispose();
       });
       meshes.current.clear(); frame.geometry.dispose(); (frame.material as THREE.Material).dispose();
-      guideGeo.dispose(); guideMaterial.dispose(); renderer.dispose();
+      guideGeo.dispose(); guideMaterial.dispose(); skyMesh.geometry.dispose(); skyMaterial.dispose(); skyTexture.dispose(); starGeometry.dispose(); starMaterial.dispose(); renderer.dispose();
       if (host.current?.contains(renderer.domElement)) host.current.removeChild(renderer.domElement);
     };
   }, []);
@@ -253,7 +264,7 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, cameraTrans
 export default function App() {
   const [layers, setLayers] = useState<Layer[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [tab, setTab] = useState<'layers'|'properties'>('layers');
+  const [tab, setTab] = useState<'layers'|'properties'|'environment'>('layers');
   const [projectName, setProjectName] = useState('Untitled Scene');
   const [maskLayerId, setMaskLayerId] = useState<string | null>(null);
   const [duration, setDuration] = useState(10);
@@ -262,6 +273,7 @@ export default function App() {
   const [windStrength, setWindStrength] = useState(0);
   const [windDirection, setWindDirection] = useState(0);
   const [atmosphere, setAtmosphere] = useState({clouds:false,mist:false,dust:false,intensity:1});
+  const [environment,setEnvironment] = useState<EnvironmentSettings>({preset:'divine',intensity:1,horizon:0.35,stars:true});
   const [keyframes, setKeyframes] = useState<Keyframe[]>([]);
   const [cameraTransform, setCameraTransform] = useState<CameraTransform>({x:0,y:0,zoom:1,z:20});
   const [liveEditTime, setLiveEditTime] = useState<number | null>(null);
@@ -409,11 +421,12 @@ export default function App() {
         <button className="rail-item" onClick={()=>setTab('layers')}><Layers3/><span>Layers</span></button>
         <button className="rail-item" onClick={()=>fileRef.current?.click()}><ImageIcon/><span>Media</span></button>
         <button className="rail-item" onClick={()=>setTab('properties')}><SlidersHorizontal/><span>Adjust</span></button>
+        <button className={'rail-item '+(tab==='environment'?'active':'')} onClick={()=>setTab('environment')}><Waves/><span>World</span></button>
         <div className="rail-bottom"><button className="rail-item"><Settings2/><span>Settings</span></button></div>
       </aside>
       <section className="editor-main">
         <div className="scene-toolbar"><div><span className="eyebrow">SCENE EDITOR</span><strong>Composition</strong></div><div className="toolbar-right"><span className="format-chip">9:16 PORTRAIT · 1080 × 1920</span><button className="small-icon" title="Fit composition"><Maximize2 size={15}/></button></div></div>
-        <Viewport layers={animatedLayers} selectedId={selectedId} onSelect={id=>{setSelectedId(id);setTab('properties');}} onMove={(id,x,y)=>updateLayer(id,{x,y})} onMoveEnd={commitCurrentKeyframe} cameraTransform={animatedCamera} playing={playing} windStrength={windStrength} windDirection={windDirection} atmosphere={atmosphere}/>
+        <Viewport layers={animatedLayers} selectedId={selectedId} onSelect={id=>{setSelectedId(id);setTab('properties');}} onMove={(id,x,y)=>updateLayer(id,{x,y})} onMoveEnd={commitCurrentKeyframe} cameraTransform={animatedCamera} playing={playing} windStrength={windStrength} windDirection={windDirection} atmosphere={atmosphere} environment={environment}/>
 <div className="timeline-panel">
  <div className="timeline-top"><div className="timeline-controls">
   <button className="play-btn" onClick={()=>{if(playhead>=duration)setPlayhead(0);setPlaying(v=>!v);}} title={playing?"Pause":"Play"}>{playing?<Pause size={15}/>:<Play size={15} fill="currentColor"/>}</button>
@@ -425,8 +438,15 @@ export default function App() {
 </div>
       </section>
       <aside className="inspector">
-        <div className="inspector-tabs"><button className={tab==='layers'?'chosen':''} onClick={()=>setTab('layers')}><Layers3 size={15}/> Layers</button><button className={tab==='properties'?'chosen':''} onClick={()=>setTab('properties')}><SlidersHorizontal size={15}/> Properties</button></div>
-        {tab==='layers' ? <div className="layer-panel">
+        <div className="inspector-tabs"><button className={tab==='layers'?'chosen':''} onClick={()=>setTab('layers')}><Layers3 size={15}/> Layers</button><button className={tab==='properties'?'chosen':''} onClick={()=>setTab('properties')}><SlidersHorizontal size={15}/> Properties</button><button className={tab==='environment'?'chosen':''} onClick={()=>setTab('environment')}><Waves size={15}/> World</button></div>
+        {tab==='environment' ? <div className="properties-panel environment-panel">
+          <div className="panel-heading"><div><span className="eyebrow">PROCEDURAL WORLD</span><strong>Environment</strong></div></div>
+          <div className="environment-presets">{([['divine','Divine'],['sunset','Sunset'],['night','Night'],['storm','Storm'],['temple','Temple'],['cosmic','Cosmic']] as [EnvironmentPreset,string][]).map(([id,label])=><button key={id} className={environment.preset===id?'selected':''} onClick={()=>setEnvironment(v=>({...v,preset:id}))}>{label}</button>)}</div>
+          <label>Sky intensity <b>{environment.intensity.toFixed(1)}×</b><input type="range" min="0.2" max="2" step=".05" value={environment.intensity} onChange={e=>setEnvironment(v=>({...v,intensity:+e.target.value}))}/></label>
+          <label>Horizon glow <b>{Math.round(environment.horizon*100)}%</b><input type="range" min="0" max="1" step=".01" value={environment.horizon} onChange={e=>setEnvironment(v=>({...v,horizon:+e.target.value}))}/></label>
+          <label className="environment-check"><input type="checkbox" checked={environment.stars} onChange={e=>setEnvironment(v=>({...v,stars:e.target.checked}))}/> Show stars</label>
+          <p className="environment-note">Generated locally in Three.js. No HDRI upload, external image, API or paid credits required.</p>
+        </div> : tab==='layers' ? <div className="layer-panel">
           <div className="panel-heading"><div><span className="eyebrow">SCENE CONTENT</span><strong>Layers <em>{layers.length}</em></strong></div><button className="add-btn" onClick={()=>fileRef.current?.click()}><Plus size={15}/> Add</button></div>
           {layers.length===0 ? <div className="layer-empty"><Layers3 size={22}/><b>No layers yet</b><span>Import transparent PNGs or a complete artwork.</span><button onClick={()=>fileRef.current?.click()}><Upload size={14}/> Import artwork</button></div> :
             <div className="layer-list">{[...layers].reverse().map(layer=><div className={'layer-row '+(selectedId===layer.id?'selected':'')} key={layer.id} onClick={()=>{setSelectedId(layer.id);setTab('properties');}}>
