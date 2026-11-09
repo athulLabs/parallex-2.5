@@ -13,7 +13,7 @@
 @media(max-width:760px){.timeline-panel{padding:7px 8px;gap:5px}.timeline-top{gap:5px}.timeline-actions{gap:5px}.keyframe-btn{height:27px;padding:0 6px;font-size:9px}.timeline-actions label{font-size:8px}.timeline-actions select{height:25px;font-size:9px}.timeline-bottom{font-size:7px}.time-readout{font-size:9px}.timeline-ruler{font-size:7px}.timeline-scrub{height:16px}}
 /* Mobile inspector: reserve a real editing area instead of a narrow strip */
 @media(max-width:760px){
-  .workspace{grid-template-columns:54px minmax(0,1fr);grid-template-rows:minmax(0,1fr) 252px}
+  .workspace{grid-template-columns:54px minmax(0,1fr);grid-template-rows:minmax(0,1fr) 202px}
   .editor-main{grid-column:2;grid-row:1;min-height:0;padding:7px 7px 6px;gap:6px}
   .scene-toolbar{min-height:31px;flex:0 0 31px}
   .viewport{min-height:0;flex:1 1 0}
@@ -32,7 +32,7 @@
   .timeline-scrub{height:19px}
   .keyframe-markers button{width:13px;height:13px;top:3px;border-radius:3px;touch-action:manipulation}
   .timeline-bottom{font-size:8px}
-  .inspector{grid-column:1/-1;grid-row:2;height:252px;min-height:252px;max-height:252px;overflow:hidden;display:flex}
+  .inspector{grid-column:1/-1;grid-row:2;height:202px;min-height:202px;max-height:202px;overflow:hidden;display:flex}
   .inspector-tabs{height:39px;min-height:39px;flex:0 0 39px}
   .layer-panel,.properties-panel{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:10px 12px 16px}
   .panel-heading{margin-bottom:10px}
@@ -42,15 +42,15 @@
   .inspector-footer{height:25px;min-height:25px;flex:0 0 25px;font-size:8px}
 }
 @media(max-width:390px){
-  .workspace{grid-template-rows:minmax(0,1fr) 232px}
-  .inspector{height:232px;min-height:232px;max-height:232px}
+  .workspace{grid-template-rows:minmax(0,1fr) 190px}
+  .inspector{height:190px;min-height:190px;max-height:190px}
   .timeline-top{grid-template-columns:auto minmax(0,1fr)}
   .timeline-actions{justify-content:flex-end;gap:4px}
   .keyframe-btn{font-size:8px;padding:0 5px}
   .timeline-actions label{font-size:8px}
 }
 @media(max-height:720px) and (max-width:760px){
-  .workspace{grid-template-rows:minmax(0,1fr) 218px}
-  .inspector{height:218px;min-height:218px;max-height:218px}
+  .workspace{grid-template-rows:minmax(0,1fr) 180px}
+  .inspector{height:180px;min-height:180px;max-height:180px}
   .properties-panel label{margin:10px 0}
 }
