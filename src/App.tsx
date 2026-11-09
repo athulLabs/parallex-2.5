@@ -30,9 +30,8 @@ const openAutosaveDb=():Promise<IDBDatabase>=>new Promise((resolve,reject)=>{
   request.onupgradeneeded=()=>{const db=request.result;if(!db.objectStoreNames.contains(AUTOSAVE_STORE))db.createObjectStore(AUTOSAVE_STORE);};
   request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);
 });
-const blobToDataUrl=(blob:Blob):Promise<string>=>new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result));reader.onerror=()=>reject(reader.error);reader.readAsDataURL(blob);});
 const persistRecovery=async(snapshot:EditorSnapshot)=>{
-  const layers=await Promise.all(snapshot.layers.map(async layer=>{const response=await fetch(layer.url);const dataUrl=await blobToDataUrl(await response.blob());return {...layer,dataUrl};}));
+  const layers=await Promise.all(snapshot.layers.map(async layer=>{const response=await fetch(layer.url);const blob=await response.blob();return {...layer,blob};}));
   const db=await openAutosaveDb();
   await new Promise<void>((resolve,reject)=>{const tx=db.transaction(AUTOSAVE_STORE,'readwrite');tx.objectStore(AUTOSAVE_STORE).put({...snapshot,layers},'latest');tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);});
   db.close();
@@ -367,7 +366,7 @@ export default function App() {
     let active=true;
     readRecovery().then(payload=>{
       if(!active||!payload||!Array.isArray(payload.layers))return;
-      const restored:Layer[]=payload.layers.map((item:any)=>{const {dataUrl,...meta}=item;const [header,encoded]=String(dataUrl).split(',');const mime=header?.match(/data:(.*?);base64/)?.[1]||'image/png';const bytes=Uint8Array.from(atob(encoded||''),c=>c.charCodeAt(0));return {...meta,url:URL.createObjectURL(new Blob([bytes],{type:mime}))};});
+      const restored:Layer[]=payload.layers.map((item:any)=>{const {blob,...meta}=item;if(!(blob instanceof Blob))throw new Error('Recovery image data is unavailable');return {...meta,url:URL.createObjectURL(blob)};});
       if(active){setLayers(restored);setSelectedId(payload.selectedId??restored[0]?.id??null);setProjectName(payload.projectName||'Untitled Scene');setDuration(Number.isFinite(payload.duration)?payload.duration:10);setKeyframes(Array.isArray(payload.keyframes)?payload.keyframes:[]);setCameraTransform(payload.cameraTransform||{x:0,y:0,zoom:1.4,z:18,roll:0});}
     }).catch(()=>{}).finally(()=>{if(active)setHydrated(true);});
     return()=>{active=false;};
