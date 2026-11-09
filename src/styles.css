@@ -195,3 +195,27 @@
 
 /* Procedural environment controls */
 .environment-presets{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin:8px 0 18px}.environment-presets button{height:36px;border:1px solid #39364b;border-radius:7px;background:#191a25;color:#aaaabd;font-size:10px}.environment-presets button.selected{border-color:#8967ff;background:#2a2141;color:#e1d7ff;box-shadow:inset 0 0 0 1px #8967ff55}.environment-check{display:flex!important;align-items:center;gap:8px}.environment-check input{accent-color:#8b68ff}.environment-note{padding:10px;border:1px solid #343047;border-radius:8px;background:#171522;color:#8f8da4;font-size:9px;line-height:1.6}@media(max-width:760px){.environment-presets{grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin:5px 0 12px}.environment-presets button{height:31px;font-size:9px}.environment-note{font-size:8px;padding:8px}}
+
+/* Bigger mobile composition workspace + clear keyframe removal action */
+.keyframe-delete-btn{height:29px;padding:0 8px;border:1px solid #74434c;background:#321c26;color:#ffadb6;border-radius:7px;display:flex;align-items:center;gap:5px;font-size:9px;white-space:nowrap}
+.keyframe-delete-btn:hover{background:#48232e;border-color:#b75d6c}
+@media(max-width:760px){
+  .workspace{grid-template-columns:54px minmax(0,1fr);grid-template-rows:minmax(0,1fr) 122px}
+  .editor-main{padding:5px 5px 5px;gap:5px}
+  .scene-toolbar{min-height:29px;flex:0 0 29px}
+  .viewport{min-height:0;flex:1 1 0}
+  .timeline-panel{padding:5px 6px;gap:3px}
+  .timeline-top{grid-template-columns:auto minmax(0,1fr);gap:4px}
+  .timeline-actions{gap:4px;flex-wrap:nowrap}
+  .timeline-actions .atmosphere-toggle,.timeline-actions .atmosphere-intensity{display:none}
+  .timeline-bottom{font-size:7px}
+  .inspector{grid-row:2;height:122px;min-height:122px;max-height:122px}
+  .inspector-tabs{height:31px;min-height:31px;flex:0 0 31px}
+  .layer-panel,.properties-panel{padding:5px 9px}
+  .layer-empty{min-height:40px}
+}
+@media(max-width:390px){
+  .workspace{grid-template-rows:minmax(0,1fr) 112px}
+  .inspector{height:112px;min-height:112px;max-height:112px}
+  .keyframe-delete-btn{height:25px;padding:0 5px;font-size:8px}
+}
