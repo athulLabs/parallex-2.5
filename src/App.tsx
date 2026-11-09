@@ -20,9 +20,9 @@ const uid = () => Math.random().toString(36).slice(2, 10);
 const BOARD_W = 4.05;
 const BOARD_H = 7.2;
 
-function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, cameraTransform, playing }: {
+function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, cameraTransform, playing, windStrength, windDirection }: {
   layers: Layer[]; selectedId: string | null; onSelect: (id: string) => void;
-  onMove: (id: string, x: number, y: number) => void; onMoveEnd: () => void; cameraTransform: CameraTransform; playing: boolean;
+  onMove: (id: string, x: number, y: number) => void; onMoveEnd: () => void; cameraTransform: CameraTransform; playing: boolean; windStrength: number; windDirection: number;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -33,6 +33,8 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, cameraTrans
   const layersRef = useRef(layers);
   const moveRef = useRef(onMove);
   const playingRef = useRef(playing);
+  const windRef = useRef({strength:windStrength,direction:windDirection});
+  useEffect(() => { windRef.current={strength:windStrength,direction:windDirection}; }, [windStrength,windDirection]);
   useEffect(() => { playingRef.current = playing; }, [playing]);
   useEffect(() => { layersRef.current = layers; }, [layers]);
   useEffect(() => { moveRef.current = onMove; }, [onMove]);
@@ -89,8 +91,10 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, cameraTrans
           const speed = Math.max(0.05, layer.motionSpeed ?? 1);
           const phase = (parseInt(layer.id.slice(0, 5), 36) || 0) * 0.0007;
           const wave = time * speed + phase;
-          mesh.position.x = layer.x + Math.sin(wave) * (layer.motionX ?? 0);
-          mesh.position.y = layer.y + Math.sin(wave * 0.72 + 0.8) * (layer.motionY ?? 0);
+          const wind=windRef.current;
+          const windPhase=wave*0.28+phase;
+          mesh.position.x = layer.x + Math.sin(wave) * (layer.motionX ?? 0) + Math.sin(windPhase)*wind.strength*0.18*Math.cos(wind.direction);
+          mesh.position.y = layer.y + Math.sin(wave * 0.72 + 0.8) * (layer.motionY ?? 0) + Math.sin(windPhase*0.8)*wind.strength*0.10*Math.sin(wind.direction);
           mesh.rotation.z = THREE.MathUtils.degToRad(layer.rotation + Math.sin(wave * 0.55) * (layer.motionRotation ?? 0));
         });
       }
@@ -217,6 +221,8 @@ export default function App() {
   const [duration, setDuration] = useState(10);
   const [playhead, setPlayhead] = useState(0);
   const [playing, setPlaying] = useState(false);
+  const [windStrength, setWindStrength] = useState(0);
+  const [windDirection, setWindDirection] = useState(0);
   const [keyframes, setKeyframes] = useState<Keyframe[]>([]);
   const [cameraTransform, setCameraTransform] = useState<CameraTransform>({x:0,y:0,zoom:1,z:20});
   const [liveEditTime, setLiveEditTime] = useState<number | null>(null);
@@ -368,7 +374,7 @@ export default function App() {
       </aside>
       <section className="editor-main">
         <div className="scene-toolbar"><div><span className="eyebrow">SCENE EDITOR</span><strong>Composition</strong></div><div className="toolbar-right"><span className="format-chip">9:16 PORTRAIT · 1080 × 1920</span><button className="small-icon" title="Fit composition"><Maximize2 size={15}/></button></div></div>
-        <Viewport layers={animatedLayers} selectedId={selectedId} onSelect={id=>{setSelectedId(id);setTab('properties');}} onMove={(id,x,y)=>updateLayer(id,{x,y})} onMoveEnd={commitCurrentKeyframe} cameraTransform={animatedCamera} playing={playing}/>
+        <Viewport layers={animatedLayers} selectedId={selectedId} onSelect={id=>{setSelectedId(id);setTab('properties');}} onMove={(id,x,y)=>updateLayer(id,{x,y})} onMoveEnd={commitCurrentKeyframe} cameraTransform={animatedCamera} playing={playing} windStrength={windStrength} windDirection={windDirection}/>
 <div className="timeline-panel">
  <div className="timeline-top"><div className="timeline-controls">
   <button className="play-btn" onClick={()=>{if(playhead>=duration)setPlayhead(0);setPlaying(v=>!v);}} title={playing?"Pause":"Play"}>{playing?<Pause size={15}/>:<Play size={15} fill="currentColor"/>}</button>
@@ -403,6 +409,10 @@ export default function App() {
           <label>Scale <b>{selected.scale.toFixed(2)}×</b><input type="range" min=".1" max="3" step=".01" value={selected.scale} onChange={e=>updateSelected({scale:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
           <label>Rotation <b>{selected.rotation}°</b><input type="range" min="-180" max="180" value={selected.rotation} onChange={e=>updateSelected({rotation:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
           <label>Opacity <b>{selected.opacity}%</b><input type="range" min="0" max="100" value={selected.opacity} onChange={e=>updateSelected({opacity:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
+          <div className="camera-control-card layer-motion-card"><div><Wind size={14}/> Scene wind <small>Global motion while playing</small></div>
+            <label>Wind strength <b>{windStrength.toFixed(2)}</b><input type="range" min="0" max="1" step=".01" value={windStrength} onChange={e=>setWindStrength(+e.target.value)}/></label>
+            <label>Wind direction <b>{Math.round(windDirection*180/Math.PI)}°</b><input type="range" min="-3.14" max="3.14" step=".01" value={windDirection} onChange={e=>setWindDirection(+e.target.value)}/></label>
+          </div>
           <div className="camera-control-card layer-motion-card"><div><Waves size={14}/> Ambient layer motion <small>Preview while playing</small></div>
             <label>Horizontal drift <b>{(selected.motionX??0).toFixed(2)}</b><input type="range" min="0" max=".8" step=".01" value={selected.motionX??0} onChange={e=>updateSelected({motionX:+e.target.value})}/></label>
             <label>Vertical drift <b>{(selected.motionY??0).toFixed(2)}</b><input type="range" min="0" max=".8" step=".01" value={selected.motionY??0} onChange={e=>updateSelected({motionY:+e.target.value})}/></label>
