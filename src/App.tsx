@@ -243,12 +243,19 @@ export default function App() {
     if (additions[0]) { setSelectedId(additions[0].id); setTab('properties'); }
   };
   const updateLayer = (id: string, patch: Partial<Layer>) => {
-    // Keep slider/drag updates live; commit one keyframe when the gesture ends.
     setLayers(prev => prev.map(layer => layer.id === id ? {...layer,...patch} : layer));
+    // When animation already exists, update/replace the keyframe at the current
+    // playhead so the animated preview follows the slider continuously.
+    // writeKeyframe replaces a frame at this timestamp instead of adding spam.
+    if (keyframes.length) {
+      const snapshot=animatedLayers.map(layer=>layer.id===id?{...layer,...patch}:layer);
+      writeKeyframe(makeFrame(playhead,snapshot,animatedCamera));
+    }
   };
   const updateSelected = (patch: Partial<Layer>) => { if (selectedId) updateLayer(selectedId,patch); };
   const updateCamera = (patch:Partial<CameraTransform>) => {
     setCameraTransform(prev=>({...prev,...patch}));
+    if (keyframes.length) writeKeyframe(makeFrame(playhead,animatedLayers,{...animatedCamera,...patch}));
   };
   const commitCurrentKeyframe = () => {
     if (!keyframes.length) return;
