@@ -22,9 +22,9 @@ const uid = () => Math.random().toString(36).slice(2, 10);
 const BOARD_W = 4.05;
 const BOARD_H = 7.2;
 
-function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, cameraTransform, playing, windStrength, windDirection, atmosphere, environment }: {
+function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoom, onCameraReset, cameraTransform, playing, windStrength, windDirection, atmosphere, environment }: {
   layers: Layer[]; selectedId: string | null; onSelect: (id: string) => void;
-  onMove: (id: string, x: number, y: number) => void; onMoveEnd: () => void; cameraTransform: CameraTransform; playing: boolean; windStrength: number; windDirection: number; atmosphere: {clouds:boolean;mist:boolean;dust:boolean;intensity:number}; environment: EnvironmentSettings;
+  onMove: (id: string, x: number, y: number) => void; onMoveEnd: () => void; onCameraZoom:(zoom:number)=>void; onCameraReset:()=>void; cameraTransform: CameraTransform; playing: boolean; windStrength: number; windDirection: number; atmosphere: {clouds:boolean;mist:boolean;dust:boolean;intensity:number}; environment: EnvironmentSettings;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -286,9 +286,9 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, cameraTrans
     {layers.length === 0 && <div className="empty-scene"><div className="empty-icon"><ImageIcon size={26}/></div><strong>Your canvas is empty</strong><span>Import artwork to begin building your 2.5D scene.</span></div>}
     <div className="viewport-badge"><span className="live-dot"/> 9:16 COMPOSITION</div>
     <div className="viewport-actions">
-      <button title="Zoom in" onClick={() => { const c=cameraRef.current; if(c){c.zoom=Math.min(2.5,c.zoom+0.15);c.updateProjectionMatrix();} }}><ZoomIn size={16}/></button>
-      <button title="Zoom out" onClick={() => { const c=cameraRef.current; if(c){c.zoom=Math.max(.5,c.zoom-0.15);c.updateProjectionMatrix();} }}><ZoomOut size={16}/></button>
-      <button title="Reset view" onClick={() => { const c=cameraRef.current; if(c){c.zoom=1;c.position.set(0,0,20);c.lookAt(0,0,0);c.updateProjectionMatrix();} }}><RotateCcw size={16}/></button>
+      <button title="Zoom in" onClick={() => onCameraZoom(Math.min(2.5,cameraTransform.zoom+0.15))}><ZoomIn size={16}/></button>
+      <button title="Zoom out" onClick={() => onCameraZoom(Math.max(.5,cameraTransform.zoom-0.15))}><ZoomOut size={16}/></button>
+      <button title="Reset view" onClick={onCameraReset}><RotateCcw size={16}/></button>
     </div>
   </div>;
 }
@@ -458,7 +458,7 @@ export default function App() {
       </aside>
       <section className="editor-main">
         <div className="scene-toolbar"><div><span className="eyebrow">SCENE EDITOR</span><strong>Composition</strong></div><div className="toolbar-right"><span className="format-chip">9:16 PORTRAIT · 1080 × 1920</span><button className="small-icon" title="Fit composition"><Maximize2 size={15}/></button></div></div>
-        <Viewport layers={animatedLayers} selectedId={selectedId} onSelect={id=>{setSelectedId(id);setTab('properties');}} onMove={(id,x,y)=>updateLayer(id,{x,y})} onMoveEnd={commitCurrentKeyframe} cameraTransform={animatedCamera} playing={playing} windStrength={windStrength} windDirection={windDirection} atmosphere={atmosphere} environment={environment}/>
+        <Viewport layers={animatedLayers} selectedId={selectedId} onSelect={id=>{setSelectedId(id);setTab('properties');}} onMove={(id,x,y)=>updateLayer(id,{x,y})} onMoveEnd={commitCurrentKeyframe} onCameraZoom={zoom=>updateCamera({zoom})} onCameraReset={()=>{setCameraTransform({x:0,y:0,zoom:1,z:20});setLiveEditTime(null);}} cameraTransform={animatedCamera} playing={playing} windStrength={windStrength} windDirection={windDirection} atmosphere={atmosphere} environment={environment}/>
 <div className="timeline-panel">
  <div className="timeline-top"><div className="timeline-controls">
   <button className="play-btn" onClick={()=>{if(playhead>=duration)setPlayhead(0);setPlaying(v=>!v);}} title={playing?"Pause":"Play"}>{playing?<Pause size={15}/>:<Play size={15} fill="currentColor"/>}</button>
