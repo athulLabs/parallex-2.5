@@ -363,6 +363,7 @@ export default function App() {
     setLayers(prev => prev.map(layer => layer.id === id ? {...layer,...patch} : layer));
   };
   const updateSelected = (patch: Partial<Layer>) => { if (selectedId) updateLayer(selectedId,patch); };
+  const setSelectedDepth = (z:number) => { if(!selectedId)return; const next=layers.map(layer=>layer.id===selectedId?{...layer,z}:layer); setLayers(next); if(keyframes.length) writeKeyframe(makeFrame(playhead,next,cameraTransform)); };
   const updateCamera = (patch:Partial<CameraTransform>) => {
     setLiveEditTime(playhead);
     setCameraTransform(prev=>({...prev,...patch}));
@@ -495,9 +496,9 @@ export default function App() {
           <label>Position Y <b>{selected.y.toFixed(2)}</b><input type="range" min="-5" max="5" step=".01" value={selected.y} onChange={e=>updateSelected({y:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
           <label>Depth (Z) <b>{selected.z.toFixed(2)}</b><input type="range" min="-8" max="8" step=".05" value={selected.z} onChange={e=>updateSelected({z:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
           <div className="depth-presets" aria-label="Layer depth presets">
-            <button type="button" onClick={()=>{updateSelected({z:-6});commitCurrentKeyframe();}}>Background</button>
-            <button type="button" onClick={()=>{updateSelected({z:0});commitCurrentKeyframe();}}>Midground</button>
-            <button type="button" onClick={()=>{updateSelected({z:6});commitCurrentKeyframe();}}>Foreground</button>
+            <button type="button" onClick={()=>setSelectedDepth(-8)}>Background</button>
+            <button type="button" onClick={()=>setSelectedDepth(0)}>Midground</button>
+            <button type="button" onClick={()=>setSelectedDepth(8)}>Foreground</button>
           </div>
           <label>Scale <b>{selected.scale.toFixed(2)}×</b><input type="range" min=".1" max="3" step=".01" value={selected.scale} onChange={e=>updateSelected({scale:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
           <label>Rotation <b>{selected.rotation}°</b><input type="range" min="-180" max="180" value={selected.rotation} onChange={e=>updateSelected({rotation:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
