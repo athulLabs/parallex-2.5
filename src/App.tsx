@@ -22,6 +22,28 @@ const uid = () => Math.random().toString(36).slice(2, 10);
 const BOARD_W = 4.05;
 const BOARD_H = 7.2;
 
+type EditorSnapshot = { layers:Layer[]; selectedId:string|null; projectName:string; duration:number; keyframes:Keyframe[]; cameraTransform:CameraTransform };
+const AUTOSAVE_DB='parallax-editor-recovery';
+const AUTOSAVE_STORE='projects';
+const openAutosaveDb=():Promise<IDBDatabase>=>new Promise((resolve,reject)=>{
+  const request=indexedDB.open(AUTOSAVE_DB,1);
+  request.onupgradeneeded=()=>{const db=request.result;if(!db.objectStoreNames.contains(AUTOSAVE_STORE))db.createObjectStore(AUTOSAVE_STORE);};
+  request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);
+});
+const blobToDataUrl=(blob:Blob):Promise<string>=>new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result));reader.onerror=()=>reject(reader.error);reader.readAsDataURL(blob);});
+const persistRecovery=async(snapshot:EditorSnapshot)=>{
+  const layers=await Promise.all(snapshot.layers.map(async layer=>{const response=await fetch(layer.url);const dataUrl=await blobToDataUrl(await response.blob());return {...layer,dataUrl};}));
+  const db=await openAutosaveDb();
+  await new Promise<void>((resolve,reject)=>{const tx=db.transaction(AUTOSAVE_STORE,'readwrite');tx.objectStore(AUTOSAVE_STORE).put({...snapshot,layers},'latest');tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);});
+  db.close();
+};
+const readRecovery=async():Promise<any|null>=>{
+  const db=await openAutosaveDb();
+  const value=await new Promise<any>((resolve,reject)=>{const tx=db.transaction(AUTOSAVE_STORE,'readonly');const req=tx.objectStore(AUTOSAVE_STORE).get('latest');req.onsuccess=()=>resolve(req.result??null);req.onerror=()=>reject(req.error);});
+  db.close();return value;
+};
+const clearRecovery=async()=>{const db=await openAutosaveDb();await new Promise<void>((resolve,reject)=>{const tx=db.transaction(AUTOSAVE_STORE,'readwrite');tx.objectStore(AUTOSAVE_STORE).delete('latest');tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);});db.close();};
+
 function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoom, onCameraReset, cameraTransform, playing, windStrength, windDirection, atmosphere, environment }: {
   layers: Layer[]; selectedId: string | null; onSelect: (id: string) => void;
   onMove: (id: string, x: number, y: number) => void; onMoveEnd: () => void; onCameraZoom:(zoom:number)=>void; onCameraReset:()=>void; cameraTransform: CameraTransform; playing: boolean; windStrength: number; windDirection: number; atmosphere: {clouds:boolean;mist:boolean;dust:boolean;intensity:number}; environment: EnvironmentSettings;
@@ -59,7 +81,7 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
     const camera = new THREE.PerspectiveCamera(20.4, 1, 0.1, 100);
     camera.position.set(0, 0, 20);
     camera.lookAt(0, 0, 0);
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, preserveDrawingBuffer: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.domElement.style.touchAction = 'none';
@@ -310,9 +332,52 @@ export default function App() {
   const [cameraTransform, setCameraTransform] = useState<CameraTransform>({x:0,y:0,zoom:1.4,z:18,roll:0});
   const [selectedKeyframeId,setSelectedKeyframeId]=useState<string|null>(null);
   const [liveEditTime, setLiveEditTime] = useState<number | null>(null);
+  const [hydrated,setHydrated]=useState(false);
+  const [autosaveEnabled,setAutosaveEnabled]=useState(true);
+  const [settingsOpen,setSettingsOpen]=useState(false);
+  const [historyVersion,setHistoryVersion]=useState(0);
+  const undoStack=useRef<EditorSnapshot[]>([]);
+  const redoStack=useRef<EditorSnapshot[]>([]);
+  const historyTimer=useRef<number|null>(null);
+  const autosaveTimer=useRef<number|null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const projectFileRef = useRef<HTMLInputElement>(null);
   const selected = layers.find(layer => layer.id === selectedId) ?? null;
+
+  const snapshotEditor=():EditorSnapshot=>({layers:layers.map(layer=>({...layer})),selectedId,projectName,duration,keyframes:keyframes.map(frame=>({...frame,layers:{...frame.layers},camera:{...frame.camera}})),cameraTransform:{...cameraTransform}});
+  const recordHistory=()=>{
+    if(historyTimer.current!==null)return;
+    const previous=snapshotEditor();
+    historyTimer.current=window.setTimeout(()=>{undoStack.current=[...undoStack.current,previous].slice(-40);redoStack.current=[];historyTimer.current=null;setHistoryVersion(v=>v+1);},650);
+  };
+  const applySnapshot=(snapshot:EditorSnapshot)=>{
+    setLayers(snapshot.layers.map(layer=>({...layer})));setSelectedId(snapshot.selectedId);setProjectName(snapshot.projectName);setDuration(snapshot.duration);setKeyframes(snapshot.keyframes.map(frame=>({...frame,layers:{...frame.layers},camera:{...frame.camera}})));setCameraTransform({...snapshot.cameraTransform});setPlaying(false);setPlayhead(0);setLiveEditTime(null);
+  };
+  const undo=()=>{
+    if(historyTimer.current!==null){window.clearTimeout(historyTimer.current);historyTimer.current=null;}
+    const previous=undoStack.current.pop();if(!previous)return;
+    redoStack.current.push(snapshotEditor());applySnapshot(previous);setHistoryVersion(v=>v+1);
+  };
+  const redo=()=>{
+    if(historyTimer.current!==null){window.clearTimeout(historyTimer.current);historyTimer.current=null;}
+    const next=redoStack.current.pop();if(!next)return;
+    undoStack.current.push(snapshotEditor());applySnapshot(next);setHistoryVersion(v=>v+1);
+  };
+  useEffect(()=>{
+    let active=true;
+    readRecovery().then(payload=>{
+      if(!active||!payload||!Array.isArray(payload.layers))return;
+      const restored:Layer[]=payload.layers.map((item:any)=>{const {dataUrl,...meta}=item;const [header,encoded]=String(dataUrl).split(',');const mime=header?.match(/data:(.*?);base64/)?.[1]||'image/png';const bytes=Uint8Array.from(atob(encoded||''),c=>c.charCodeAt(0));return {...meta,url:URL.createObjectURL(new Blob([bytes],{type:mime}))};});
+      if(active){setLayers(restored);setSelectedId(payload.selectedId??restored[0]?.id??null);setProjectName(payload.projectName||'Untitled Scene');setDuration(Number.isFinite(payload.duration)?payload.duration:10);setKeyframes(Array.isArray(payload.keyframes)?payload.keyframes:[]);setCameraTransform(payload.cameraTransform||{x:0,y:0,zoom:1.4,z:18,roll:0});}
+    }).catch(()=>{}).finally(()=>{if(active)setHydrated(true);});
+    return()=>{active=false;};
+  },[]);
+  useEffect(()=>{
+    if(!hydrated||!autosaveEnabled)return;
+    if(autosaveTimer.current!==null)window.clearTimeout(autosaveTimer.current);
+    autosaveTimer.current=window.setTimeout(()=>{void persistRecovery(snapshotEditor()).catch(()=>{});},900);
+    return()=>{if(autosaveTimer.current!==null)window.clearTimeout(autosaveTimer.current);};
+  },[hydrated,autosaveEnabled,layers,selectedId,projectName,duration,keyframes,cameraTransform]);
   const animatedLayers = layers.map(layer => {
     if (!keyframes.length || (liveEditTime !== null && Math.abs(playhead-liveEditTime)<0.02)) return layer;
     const frames=[...keyframes].sort((a,b)=>a.time-b.time);
@@ -349,6 +414,7 @@ export default function App() {
   useEffect(()=>{ if(!playing)return; playbackStart.current=playhead; let raf=0,last=0,elapsed=0; const tick=(now:number)=>{if(!last)last=now;elapsed+=Math.min(.1,(now-last)/1000);last=now;const next=Math.min(duration,playbackStart.current+elapsed);setPlayhead(next);if(next>=duration){setPlaying(false);return;}raf=requestAnimationFrame(tick);};raf=requestAnimationFrame(tick);return()=>cancelAnimationFrame(raf);},[playing,duration]);
 
   const importFiles = (files: FileList | null) => {
+    if(files?.length)recordHistory();
     if (!files) return;
     const additions: Layer[] = Array.from(files).filter(file => file.type.startsWith('image/')).map(file => ({
       id: uid(), name: (() => { const base=file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g,' ').trim(); return /^file[_\s-]*[a-f0-9]{12,}$/i.test(base) ? 'Image ' + (layers.length + 1) : (base || 'Image ' + (layers.length + 1)); })(), fileName: file.name,
@@ -360,12 +426,14 @@ export default function App() {
     if (additions[0]) { setSelectedId(additions[0].id); setTab('properties'); }
   };
   const updateLayer = (id: string, patch: Partial<Layer>) => {
+    recordHistory();
     setLiveEditTime(playhead);
     setLayers(prev => prev.map(layer => layer.id === id ? {...layer,...patch} : layer));
   };
   const updateSelected = (patch: Partial<Layer>) => { if (selectedId) updateLayer(selectedId,patch); };
-  const setSelectedDepth = (z:number) => { if(!selectedId)return; const next=layers.map(layer=>layer.id===selectedId?{...layer,z}:layer); setLayers(next); if(keyframes.length) writeKeyframe(makeFrame(playhead,next,cameraTransform)); };
+  const setSelectedDepth = (z:number) => { if(!selectedId)return; recordHistory(); const next=layers.map(layer=>layer.id===selectedId?{...layer,z}:layer); setLayers(next); if(keyframes.length) writeKeyframe(makeFrame(playhead,next,cameraTransform)); };
   const updateCamera = (patch:Partial<CameraTransform>) => {
+    recordHistory();
     setLiveEditTime(playhead);
     setCameraTransform(prev=>({...prev,...patch}));
   };
@@ -374,20 +442,22 @@ export default function App() {
     setLiveEditTime(null);
   };
   const applyMask = (id: string, blob: Blob) => {
+    recordHistory();
     const oldLayer = layers.find(layer => layer.id === id);
     if (!oldLayer) return;
     const url = URL.createObjectURL(blob);
-    URL.revokeObjectURL(oldLayer.url);
     setLayers(prev => prev.map(layer => layer.id === id
       ? { ...layer, url, fileName: layer.name + '-masked.png' }
       : layer));
     setMaskLayerId(null);
   };
   const removeLayer = (id: string) => {
-    setLayers(prev => { const found=prev.find(layer=>layer.id===id); if(found) URL.revokeObjectURL(found.url); return prev.filter(layer=>layer.id!==id); });
+    recordHistory();
+    setLayers(prev => prev.filter(layer=>layer.id!==id));
     if(selectedId===id) setSelectedId(null);
   };
   const duplicateLayer = (layer: Layer) => {
+    recordHistory();
     const copy={...layer,id:uid(),name:layer.name+' copy',z:layer.z+0.08};
     setLayers(prev=>[...prev,copy]); setSelectedId(copy.id);
   };
@@ -421,6 +491,8 @@ export default function App() {
     try {
       const payload = JSON.parse(await file.text());
       if (payload.format !== 'PARALLAX_2_5' || !Array.isArray(payload.layers)) throw new Error('This is not a PARALLAX project file.');
+      recordHistory();
+      const idMap=new Map<string,string>();
       const restored: Layer[] = payload.layers.map((item: any) => {
         if (typeof item.dataUrl !== 'string' || typeof item.name !== 'string') throw new Error('Project contains an invalid image layer.');
         const [header, encoded] = item.dataUrl.split(',');
@@ -429,11 +501,12 @@ export default function App() {
         const bytes = Uint8Array.from(binary, char => char.charCodeAt(0));
         const url = URL.createObjectURL(new Blob([bytes], {type:mime}));
         const {dataUrl, ...metadata} = item;
-        return {...metadata, url, id:uid(), visible:item.visible !== false, locked:!!item.locked};
+        const newId=String(metadata.id||uid());idMap.set(String(item.id),newId);
+        return {...metadata, url, id:newId, visible:item.visible !== false, locked:!!item.locked};
       });
       layers.forEach(layer => URL.revokeObjectURL(layer.url));
       setLayers(restored);
-      setKeyframes(Array.isArray(payload.keyframes) ? payload.keyframes : []);
+      setKeyframes(Array.isArray(payload.keyframes) ? payload.keyframes.map((frame:any)=>({...frame,layers:Object.fromEntries(Object.entries(frame.layers||{}).map(([oldId,value])=>[idMap.get(String(oldId))||String(oldId),value]))})) : []);
       setDuration(Number.isFinite(payload.duration) ? Math.max(1,Math.min(120,payload.duration)) : 10);
       setCameraTransform(payload.cameraTransform && Number.isFinite(payload.cameraTransform.zoom) ? {...payload.cameraTransform,z:Number.isFinite(payload.cameraTransform.z)?payload.cameraTransform.z:20} : {x:0,y:0,zoom:1,z:20});
       setPlayhead(0); setPlaying(false);
@@ -449,7 +522,7 @@ export default function App() {
     <header className="topbar">
       <div className="brand"><div className="brand-mark">P</div><div><b>PARALLAX</b><small>2.5 CINEMATIC STUDIO</small></div></div>
       <div className="project-title"><input value={projectName} onChange={e=>setProjectName(e.target.value)} aria-label="Project name"/><span className="saved-dot"/><small>SESSION</small></div>
-      <div className="top-actions"><button className="icon-btn" title="Open PARALLAX project" onClick={()=>projectFileRef.current?.click()}><FolderOpen size={17}/></button><button className="icon-btn" title="Save project JSON" onClick={saveProject}><Download size={17}/></button><button className="icon-btn mobile-hidden" title="Undo (coming soon)"><Undo2 size={17}/></button><button className="icon-btn mobile-hidden" title="Redo (coming soon)"><Redo2 size={17}/></button><button className="export-btn" onClick={()=>{const canvas=document.querySelector(".viewport canvas") as HTMLCanvasElement|null;if(!canvas){alert("Canvas is not ready yet.");return;}try{const link=document.createElement("a");link.download=(projectName.trim()||"parallax-scene").replace(/[^a-z0-9-_]+/gi,"-")+".png";link.href=canvas.toDataURL("image/png");link.click();}catch{alert("Could not export the canvas. Please try again.");}}}><Download size={15}/> Download PNG</button></div>
+      <div className="top-actions"><button className="icon-btn" title="Open PARALLAX project" onClick={()=>projectFileRef.current?.click()}><FolderOpen size={17}/></button><button className="icon-btn" title="Save project JSON" onClick={saveProject}><Download size={17}/></button><button className="icon-btn mobile-hidden" title="Undo" aria-label="Undo" disabled={undoStack.current.length===0} onClick={undo}><Undo2 size={17}/></button><button className="icon-btn mobile-hidden" title="Redo" aria-label="Redo" disabled={redoStack.current.length===0} onClick={redo}><Redo2 size={17}/></button><button className="export-btn" onClick={()=>{const canvas=document.querySelector(".viewport canvas") as HTMLCanvasElement|null;if(!canvas){alert("Canvas is not ready yet.");return;}try{const link=document.createElement("a");link.download=(projectName.trim()||"parallax-scene").replace(/[^a-z0-9-_]+/gi,"-")+".png";link.href=canvas.toDataURL("image/png");link.click();}catch{alert("Could not export the canvas. Please try again.");}}}><Download size={15}/> Download PNG</button></div>
     </header>
     <div className="workspace">
       <aside className="left-rail">
@@ -458,7 +531,7 @@ export default function App() {
         <button className="rail-item" onClick={()=>fileRef.current?.click()}><ImageIcon/><span>Media</span></button>
         <button className="rail-item" onClick={()=>setTab('properties')}><SlidersHorizontal/><span>Adjust</span></button>
         <button className={'rail-item '+(tab==='environment'?'active':'')} onClick={()=>setTab('environment')}><Waves/><span>World</span></button>
-        <div className="rail-bottom"><button className="rail-item"><Settings2/><span>Settings</span></button></div>
+        <div className="rail-bottom"><button className="rail-item" onClick={()=>setSettingsOpen(true)}><Settings2/><span>Settings</span></button></div>
       </aside>
       <section className="editor-main">
         <div className="scene-toolbar"><div><span className="eyebrow">SCENE EDITOR</span><strong>Composition</strong></div><div className="toolbar-right"><span className="format-chip">9:16 PORTRAIT · 1080 × 1920</span><button className="small-icon" title="Full preview" aria-label="Open full preview" onClick={()=>{const el=document.querySelector(".viewport") as HTMLElement|null;if(!el)return;const request=el.requestFullscreen||((el as any).webkitRequestFullscreen);if(request)request.call(el);else alert("Full-screen preview is not supported by this browser.");}}><Maximize2 size={15}/></button></div></div>
@@ -524,6 +597,7 @@ export default function App() {
         <div className="inspector-footer"><span className="live-dot"/> Drag layers in the canvas to reposition</div>
       </aside>
     </div>
+    {settingsOpen && <div className="mask-overlay" role="dialog" aria-modal="true" aria-label="PARALLAX settings"><div className="mask-dialog settings-dialog"><div className="mask-header"><div><span className="eyebrow">WORKSPACE</span><strong>Settings</strong></div><button className="mask-close" onClick={()=>setSettingsOpen(false)} aria-label="Close settings">×</button></div><label className="environment-check"><input type="checkbox" checked={autosaveEnabled} onChange={e=>setAutosaveEnabled(e.target.checked)}/> Automatically save recovery copy on this device</label><p className="environment-note">Your scene and imported artwork are saved privately in this browser using IndexedDB. Autosave helps restore your work if the tab reloads.</p><button className="wide-secondary" onClick={()=>{void clearRecovery().then(()=>alert("Local recovery copy cleared." )).catch(()=>alert("Could not clear local recovery copy."));}}>Clear local recovery copy</button><div className="mask-footer"><span>PARALLAX 2.5 · Local workspace</span><button className="mask-apply" onClick={()=>setSettingsOpen(false)}>Done</button></div></div></div>}
     {maskLayerId && layers.find(layer=>layer.id===maskLayerId) && <MaskEditor src={layers.find(layer=>layer.id===maskLayerId)!.url} name={layers.find(layer=>layer.id===maskLayerId)!.name} onApply={blob=>applyMask(maskLayerId,blob)} onClose={()=>setMaskLayerId(null)}/>}
     <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" multiple hidden onChange={e=>{importFiles(e.target.files);e.target.value='';}}/><input ref={projectFileRef} type="file" accept=".json,.parallax.json,application/json" hidden onChange={e=>{const file=e.target.files?.[0];if(file)void loadProject(file);e.target.value='';}}/>
   </main>;
