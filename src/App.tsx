@@ -163,6 +163,38 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, cameraTrans
     };
   }, []);
 
+  useEffect(() => {
+    const canvas=document.querySelector('.viewport canvas') as HTMLCanvasElement|null;
+    // The scene's own sky texture is kept on the Three.js scene, not the UI canvas.
+    const scene=sceneRef.current; if(!scene) return;
+    const sky=scene.children.find(o=>o.type==='Mesh' && o.position.z===-12) as THREE.Mesh|undefined;
+    const material=sky?.material as THREE.MeshBasicMaterial|undefined;
+    const texture=material?.map as THREE.CanvasTexture|undefined;
+    const source=texture?.image as HTMLCanvasElement|undefined;
+    const ctx=source?.getContext('2d'); if(!ctx||!texture||!material) return;
+    const palettes:Record<EnvironmentPreset,[string,string,string,string]> = {
+      divine:['#080d22','#182b52','#bd8065','#f1c68d'],
+      sunset:['#25102e','#8c3151','#e77b53','#ffd18a'],
+      night:['#030611','#0b1730','#17294c','#52618b'],
+      storm:['#080d17','#202d3c','#48515b','#9a8e82'],
+      temple:['#100d13','#342326','#80513c','#d5a45e'],
+      cosmic:['#07051b','#24154c','#593b83','#d29bc1']
+    };
+    const colors=palettes[environment.preset];
+    const gradient=ctx.createLinearGradient(0,0,0,1024);
+    gradient.addColorStop(0,colors[0]); gradient.addColorStop(.48,colors[1]); gradient.addColorStop(.78,colors[2]); gradient.addColorStop(1,colors[3]);
+    ctx.clearRect(0,0,512,1024); ctx.fillStyle=gradient; ctx.fillRect(0,0,512,1024);
+    const glow=ctx.createRadialGradient(256,760,8,256,760,430);
+    glow.addColorStop(0,colors[3]); glow.addColorStop(1,'transparent');
+    ctx.globalAlpha=environment.horizon*.65; ctx.fillStyle=glow; ctx.fillRect(0,0,512,1024); ctx.globalAlpha=1;
+    if(environment.preset==='cosmic'){
+      for(let i=0;i<18;i++){const x=(i*137)%512,y=130+(i*193)%650;const g=ctx.createRadialGradient(x,y,2,x,y,90);g.addColorStop(0,'rgba(164,112,255,.24)');g.addColorStop(1,'transparent');ctx.fillStyle=g;ctx.fillRect(x-90,y-90,180,180);}
+    }
+    texture.needsUpdate=true; material.opacity=environment.intensity; material.transparent=environment.intensity<1;
+    const starPoints=scene.children.find(o=>o.type==='Points') as THREE.Points|undefined;
+    if(starPoints) starPoints.visible=environment.stars && ['night','storm','cosmic','divine'].includes(environment.preset);
+    if(starPoints) (starPoints.material as THREE.PointsMaterial).opacity=environment.preset==='storm'?.22:.75;
+  }, [environment]);
   useEffect(() => { const camera=cameraRef.current; if(!camera) return; camera.position.set(cameraTransform.x,cameraTransform.y,cameraTransform.z ?? 20); camera.lookAt(0,0,0); camera.zoom=cameraTransform.zoom; camera.updateProjectionMatrix(); }, [cameraTransform]);
 
   useEffect(() => {
