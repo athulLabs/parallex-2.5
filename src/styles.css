@@ -54,3 +54,36 @@
   .inspector{height:180px;min-height:180px;max-height:180px}
   .properties-panel label{margin:10px 0}
 }
+
+/* Mobile timeline: keep controls in their own columns, never overlap the timecode */
+@media(max-width:760px){
+  .workspace{grid-template-rows:minmax(0,1fr) 164px!important}
+  .inspector{height:164px!important;min-height:164px!important;max-height:164px!important}
+  .timeline-panel{padding:6px 7px;gap:5px;overflow:visible}
+  .timeline-top{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;align-items:center;gap:6px!important;width:100%;min-width:0}
+  .timeline-controls{display:flex;align-items:center;gap:5px;min-width:0;overflow:hidden}
+  .timeline-controls .play-btn,.timeline-controls .timeline-icon{flex:0 0 27px;width:27px;height:27px}
+  .time-readout{font-size:8px;min-width:0;overflow:hidden;text-overflow:clip;white-space:nowrap}
+  .timeline-actions{display:grid!important;grid-template-columns:minmax(0,1fr) auto!important;align-items:center;justify-content:stretch!important;gap:5px!important;min-width:0;width:100%;overflow:hidden}
+  .timeline-actions .keyframe-btn{min-width:0;width:100%;justify-content:center;padding:0 4px;font-size:8px;overflow:hidden}
+  .timeline-actions>label:not(.atmosphere-toggle):not(.atmosphere-intensity){display:flex;align-items:center;gap:3px;font-size:8px;min-width:0}
+  .timeline-actions select{min-width:48px;width:52px;height:26px;padding:0 3px;font-size:9px}
+  .timeline-actions .keyframe-delete-btn{display:none}
+  .timeline-ruler{margin-top:1px}
+  .timeline-scrub{height:18px}
+  .inspector-tabs{height:35px;min-height:35px;flex:0 0 35px}
+  .layer-panel,.properties-panel{padding:7px 10px 12px}
+  .layer-empty{min-height:65px}
+  .inspector-footer{height:22px;min-height:22px;flex:0 0 22px}
+}
+@media(max-width:390px){
+  .workspace{grid-template-rows:minmax(0,1fr) 150px!important}
+  .inspector{height:150px!important;min-height:150px!important;max-height:150px!important}
+  .timeline-top{grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important}
+  .time-readout{font-size:7px}
+  .timeline-actions .keyframe-btn{font-size:7px}
+}
+@media(max-height:720px) and (max-width:760px){
+  .workspace{grid-template-rows:minmax(0,1fr) 145px!important}
+  .inspector{height:145px!important;min-height:145px!important;max-height:145px!important}
+}
