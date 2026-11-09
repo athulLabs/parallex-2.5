@@ -8,7 +8,7 @@ import {
 , Waves, Wind} from 'lucide-react';
 
 type Transform = { x:number; y:number; z:number; scale:number; rotation:number; opacity:number };
-type CameraTransform = { x:number; y:number; zoom:number; z:number };
+type CameraTransform = { x:number; y:number; zoom:number; z:number; roll:number };
 type Keyframe = { id:string; time:number; layers:Record<string,Transform>; camera:CameraTransform };
 type EnvironmentPreset = 'divine'|'sunset'|'night'|'storm'|'temple'|'cosmic';
 type EnvironmentSettings = { preset: EnvironmentPreset; intensity:number; horizon:number; stars:boolean; };
@@ -195,7 +195,7 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
     if(starPoints) starPoints.visible=environment.stars && ['night','storm','cosmic','divine'].includes(environment.preset);
     if(starPoints) (starPoints.material as THREE.PointsMaterial).opacity=environment.preset==='storm'?.22:.75;
   }, [environment]);
-  useEffect(() => { const camera=cameraRef.current; if(!camera) return; camera.position.set(cameraTransform.x,cameraTransform.y,cameraTransform.z ?? 20); camera.lookAt(0,0,0); camera.zoom=cameraTransform.zoom; camera.updateProjectionMatrix(); }, [cameraTransform]);
+  useEffect(() => { const camera=cameraRef.current; if(!camera) return; camera.position.set(cameraTransform.x,cameraTransform.y,cameraTransform.z ?? 20); camera.lookAt(0,0,0); camera.rotation.z=(cameraTransform.roll??0)*Math.PI/180; camera.zoom=cameraTransform.zoom; camera.updateProjectionMatrix(); }, [cameraTransform]);
 
   useEffect(() => {
     const scene = sceneRef.current; if (!scene) return;
@@ -307,7 +307,8 @@ export default function App() {
   const [atmosphere, setAtmosphere] = useState({clouds:false,mist:false,dust:false,intensity:1});
   const [environment,setEnvironment] = useState<EnvironmentSettings>({preset:'divine',intensity:1,horizon:0.35,stars:true});
   const [keyframes, setKeyframes] = useState<Keyframe[]>([]);
-  const [cameraTransform, setCameraTransform] = useState<CameraTransform>({x:0,y:0,zoom:1.4,z:18});
+  const [cameraTransform, setCameraTransform] = useState<CameraTransform>({x:0,y:0,zoom:1.4,z:18,roll:0});
+  const [selectedKeyframeId,setSelectedKeyframeId]=useState<string|null>(null);
   const [liveEditTime, setLiveEditTime] = useState<number | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const projectFileRef = useRef<HTMLInputElement>(null);
@@ -332,7 +333,7 @@ export default function App() {
     const after=frames.find(frame=>frame.time>=playhead) ?? frames[frames.length-1];
     const span=after.time-before.time, raw=span<=0?0:Math.max(0,Math.min(1,(playhead-before.time)/span));
     const t=raw*raw*(3-2*raw);
-    return {x:before.camera.x+(after.camera.x-before.camera.x)*t,y:before.camera.y+(after.camera.y-before.camera.y)*t,zoom:before.camera.zoom+(after.camera.zoom-before.camera.zoom)*t,z:(before.camera.z??20)+((after.camera.z??20)-(before.camera.z??20))*t};
+    return {x:before.camera.x+(after.camera.x-before.camera.x)*t,y:before.camera.y+(after.camera.y-before.camera.y)*t,zoom:before.camera.zoom+(after.camera.zoom-before.camera.zoom)*t,z:(before.camera.z??20)+((after.camera.z??20)-(before.camera.z??20))*t,roll:(before.camera.roll??0)+((after.camera.roll??0)-(before.camera.roll??0))*t};
   })();
   const makeFrame = (time:number, layerSnapshot:Layer[]=animatedLayers, cameraSnapshot:CameraTransform=animatedCamera):Keyframe => ({
     id:uid(),time:Number(time.toFixed(2)),
@@ -340,9 +341,9 @@ export default function App() {
     camera:{...cameraSnapshot}
   });
   const writeKeyframe = (frame:Keyframe) => setKeyframes(prev=>[...prev.filter(item=>Math.abs(item.time-frame.time)>0.015),frame].sort((a,b)=>a.time-b.time));
-  const addKeyframe = () => writeKeyframe(makeFrame(playhead));
-  const activeKeyframe = keyframes.find(frame=>Math.abs(frame.time-playhead)<0.025) ?? null;
-  const deleteActiveKeyframe = () => { if(!activeKeyframe)return; setKeyframes(prev=>prev.filter(frame=>frame.id!==activeKeyframe.id)); };
+  const addKeyframe = () => { const frame=makeFrame(playhead); writeKeyframe(frame); setSelectedKeyframeId(frame.id); };
+  const selectedKeyframe = keyframes.find(frame=>frame.id===selectedKeyframeId) ?? null;
+  const deleteSelectedKeyframe = () => { if(!selectedKeyframe)return; setKeyframes(prev=>prev.filter(frame=>frame.id!==selectedKeyframe.id)); setSelectedKeyframeId(null); };
   const playbackStart = useRef(0);
   useEffect(()=>{ if(tab==='properties') document.querySelector('.properties-panel')?.scrollTo({top:0,behavior:'smooth'}); },[tab,selectedId]);
   useEffect(()=>{ if(!playing)return; playbackStart.current=playhead; let raf=0,last=0,elapsed=0; const tick=(now:number)=>{if(!last)last=now;elapsed+=Math.min(.1,(now-last)/1000);last=now;const next=Math.min(duration,playbackStart.current+elapsed);setPlayhead(next);if(next>=duration){setPlaying(false);return;}raf=requestAnimationFrame(tick);};raf=requestAnimationFrame(tick);return()=>cancelAnimationFrame(raf);},[playing,duration]);
@@ -461,14 +462,14 @@ export default function App() {
       </aside>
       <section className="editor-main">
         <div className="scene-toolbar"><div><span className="eyebrow">SCENE EDITOR</span><strong>Composition</strong></div><div className="toolbar-right"><span className="format-chip">9:16 PORTRAIT · 1080 × 1920</span><button className="small-icon" title="Full preview" aria-label="Open full preview" onClick={()=>{const el=document.querySelector(".viewport") as HTMLElement|null;if(!el)return;const request=el.requestFullscreen||((el as any).webkitRequestFullscreen);if(request)request.call(el);else alert("Full-screen preview is not supported by this browser.");}}><Maximize2 size={15}/></button></div></div>
-        <Viewport layers={animatedLayers} selectedId={selectedId} onSelect={id=>{setSelectedId(id);setTab('properties');}} onMove={(id,x,y)=>updateLayer(id,{x,y})} onMoveEnd={commitCurrentKeyframe} onCameraZoom={zoom=>updateCamera({zoom})} onCameraReset={()=>{setCameraTransform({x:0,y:0,zoom:1.4,z:18});setLiveEditTime(null);}} cameraTransform={animatedCamera} playing={playing} windStrength={windStrength} windDirection={windDirection} atmosphere={atmosphere} environment={environment}/>
+        <Viewport layers={animatedLayers} selectedId={selectedId} onSelect={id=>{setSelectedId(id);setTab('properties');}} onMove={(id,x,y)=>updateLayer(id,{x,y})} onMoveEnd={commitCurrentKeyframe} onCameraZoom={zoom=>updateCamera({zoom})} onCameraReset={()=>{setCameraTransform({x:0,y:0,zoom:1.4,z:18,roll:0});setLiveEditTime(null);}} cameraTransform={animatedCamera} playing={playing} windStrength={windStrength} windDirection={windDirection} atmosphere={atmosphere} environment={environment}/>
 <div className="timeline-panel">
  <div className="timeline-top"><div className="timeline-controls">
   <button className="play-btn" onClick={()=>{if(playhead>=duration)setPlayhead(0);setPlaying(v=>!v);}} title={playing?"Pause":"Play"}>{playing?<Pause size={15}/>:<Play size={15} fill="currentColor"/>}</button>
   <button className="timeline-icon" onClick={()=>{setPlaying(false);setPlayhead(0);}} title="Go to start"><SkipBack size={15}/></button><span className="time-readout">{playhead.toFixed(2)}s / {duration.toFixed(1)}s</span>
- </div><div className="timeline-actions"><label className="atmosphere-toggle"><input type="checkbox" checked={atmosphere.clouds} onChange={e=>setAtmosphere(v=>({...v,clouds:e.target.checked}))}/> Clouds</label><label className="atmosphere-toggle"><input type="checkbox" checked={atmosphere.mist} onChange={e=>setAtmosphere(v=>({...v,mist:e.target.checked}))}/> Mist</label><label className="atmosphere-toggle"><input type="checkbox" checked={atmosphere.dust} onChange={e=>setAtmosphere(v=>({...v,dust:e.target.checked}))}/> Dust</label><label className="atmosphere-intensity">Atmosphere <input type="range" min="0" max="2" step=".05" value={atmosphere.intensity} onChange={e=>setAtmosphere(v=>({...v,intensity:+e.target.value}))}/></label><button className="keyframe-btn" onClick={addKeyframe} disabled={!layers.length}><KeyRound size={14}/> Add keyframe</button>{activeKeyframe && <button className="keyframe-delete-btn" onClick={deleteActiveKeyframe} title="Delete selected keyframe"><Trash2 size={13}/> Delete</button>}<label>Duration <select value={duration} onChange={e=>{setDuration(+e.target.value);setPlayhead(p=>Math.min(p,+e.target.value));setPlaying(false);}}>{[5,10,15,20,30,45,60,90,120].map(v=><option key={v} value={v}>{v}s</option>)}</select></label></div></div>
+ </div><div className="timeline-actions"><label className="atmosphere-toggle"><input type="checkbox" checked={atmosphere.clouds} onChange={e=>setAtmosphere(v=>({...v,clouds:e.target.checked}))}/> Clouds</label><label className="atmosphere-toggle"><input type="checkbox" checked={atmosphere.mist} onChange={e=>setAtmosphere(v=>({...v,mist:e.target.checked}))}/> Mist</label><label className="atmosphere-toggle"><input type="checkbox" checked={atmosphere.dust} onChange={e=>setAtmosphere(v=>({...v,dust:e.target.checked}))}/> Dust</label><label className="atmosphere-intensity">Atmosphere <input type="range" min="0" max="2" step=".05" value={atmosphere.intensity} onChange={e=>setAtmosphere(v=>({...v,intensity:+e.target.value}))}/></label><button className="keyframe-btn" onClick={addKeyframe} disabled={!layers.length}><KeyRound size={14}/> Add keyframe</button>{selectedKeyframe && <button className="keyframe-delete-btn" onClick={deleteSelectedKeyframe} title="Delete selected keyframe at "+selectedKeyframe.time.toFixed(2)+"s"><Trash2 size={13}/> Delete keyframe</button>}<label>Duration <select value={duration} onChange={e=>{setDuration(+e.target.value);setPlayhead(p=>Math.min(p,+e.target.value));setPlaying(false);}}>{[5,10,15,20,30,45,60,90,120].map(v=><option key={v} value={v}>{v}s</option>)}</select></label></div></div>
  <div className="timeline-ruler"><span>00:00</span><span>{(duration/4).toFixed(1)}s</span><span>{(duration/2).toFixed(1)}s</span><span>{(duration*.75).toFixed(1)}s</span><span>{duration.toFixed(1)}s</span></div>
- <div className="timeline-scrub"><input aria-label="Timeline playhead" type="range" min="0" max={duration} step=".01" value={playhead} onChange={e=>{setPlaying(false);setPlayhead(+e.target.value);}}/><div className="keyframe-markers">{keyframes.map(frame=><button key={frame.id} title={"Keyframe at "+frame.time.toFixed(2)+"s"} style={{left:(frame.time/duration*100)+"%"}} onClick={()=>{setPlaying(false);setPlayhead(frame.time);}}/>)}</div></div>
+ <div className="timeline-scrub"><input aria-label="Timeline playhead" type="range" min="0" max={duration} step=".01" value={playhead} onChange={e=>{setPlaying(false);setPlayhead(+e.target.value);}}/><div className="keyframe-markers">{keyframes.map(frame=><button key={frame.id} title={"Keyframe at "+frame.time.toFixed(2)+"s"} style={{left:(frame.time/duration*100)+"%"}} onClick={()=>{setPlaying(false);setSelectedKeyframeId(frame.id);setPlayhead(frame.time);}}/>)}</div></div>
  <div className="timeline-bottom"><span><CircleDot size={11}/> {keyframes.length} keyframes</span><span>30 FPS · Smooth interpolation</span></div>
 </div>
       </section>
@@ -515,9 +516,9 @@ export default function App() {
             <button type="button" className="wide-secondary" onClick={()=>updateSelected({motionX:0,motionY:0,motionRotation:0,motionSpeed:1})}>Reset layer motion</button>
           </div>
           <div className="camera-control-card"><div><Camera size={14}/> Camera framing</div>
-            <label>Horizontal <b>{cameraTransform.x.toFixed(2)}</b><input type="range" min="-2" max="2" step=".01" value={cameraTransform.x} onChange={e=>updateCamera({x:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
-            <label>Vertical <b>{cameraTransform.y.toFixed(2)}</b><input type="range" min="-3" max="3" step=".01" value={cameraTransform.y} onChange={e=>updateCamera({y:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
-            <label>Camera zoom <b>{cameraTransform.zoom.toFixed(2)}×</b><input type="range" min=".5" max="3.5" step=".01" value={cameraTransform.zoom} onChange={e=>updateCamera({zoom:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>\n            <label>Camera distance <b>{(cameraTransform.z??20).toFixed(1)}</b><input type="range" min="10" max="32" step=".1" value={cameraTransform.z??18} onChange={e=>updateCamera({z:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label></div>
+            <label>Horizontal <b>{cameraTransform.x.toFixed(2)}</b><input type="range" min="-8" max="8" step=".01" value={cameraTransform.x} onChange={e=>updateCamera({x:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
+            <label>Vertical <b>{cameraTransform.y.toFixed(2)}</b><input type="range" min="-12" max="12" step=".01" value={cameraTransform.y} onChange={e=>updateCamera({y:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
+            <label>Camera zoom <b>{cameraTransform.zoom.toFixed(2)}×</b><input type="range" min=".35" max="5" step=".01" value={cameraTransform.zoom} onChange={e=>updateCamera({zoom:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>\n            <label>Camera distance <b>{(cameraTransform.z??20).toFixed(1)}</b><input type="range" min="6" max="50" step=".1" value={cameraTransform.z??18} onChange={e=>updateCamera({z:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label><label>Camera roll <b>{(cameraTransform.roll??0).toFixed(0)}°</b><input type="range" min="-45" max="45" step="1" value={cameraTransform.roll??0} onChange={e=>updateCamera({roll:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label></div>
           <button className="wide-secondary mask-open-btn" onClick={()=>setMaskLayerId(selected.id)}><Scan size={14}/> Open manual mask editor</button><button className="wide-secondary" onClick={()=>duplicateLayer(selected)}><Copy size={14}/> Duplicate layer</button>
         </> : <div className="layer-empty"><SlidersHorizontal size={22}/><b>No layer selected</b><span>Select a layer to edit its transforms.</span></div>}</div>}
         <div className="inspector-footer"><span className="live-dot"/> Drag layers in the canvas to reposition</div>
