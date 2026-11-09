@@ -5,7 +5,7 @@ import {
   Upload, Layers3, Image as ImageIcon, Move3D, SlidersHorizontal, Eye, EyeOff,
   Lock, Unlock, Trash2, Copy, Plus, Play, Undo2, Redo2, Maximize2, Download, FolderOpen,
   ZoomIn, ZoomOut, RotateCcw, Film, Settings2, Scan, Pause, CircleDot, SkipBack, Camera, KeyRound
-} from 'lucide-react';
+, Waves} from 'lucide-react';
 
 type Transform = { x:number; y:number; z:number; scale:number; rotation:number; opacity:number };
 type CameraTransform = { x:number; y:number; zoom:number; z:number };
@@ -14,14 +14,15 @@ type Layer = {
   id: string; name: string; url: string; fileName: string;
   x: number; y: number; z: number; scale: number; rotation: number;
   visible: boolean; locked: boolean; opacity: number; width: number; height: number;
+  motionX?: number; motionY?: number; motionRotation?: number; motionSpeed?: number;
 };
 const uid = () => Math.random().toString(36).slice(2, 10);
 const BOARD_W = 4.05;
 const BOARD_H = 7.2;
 
-function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, cameraTransform }: {
+function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, cameraTransform, playing }: {
   layers: Layer[]; selectedId: string | null; onSelect: (id: string) => void;
-  onMove: (id: string, x: number, y: number) => void; onMoveEnd: () => void; cameraTransform: CameraTransform;
+  onMove: (id: string, x: number, y: number) => void; onMoveEnd: () => void; cameraTransform: CameraTransform; playing: boolean;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -31,6 +32,8 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, cameraTrans
   const drag = useRef<{id:string; startX:number; startY:number; originX:number; originY:number; moved:boolean}|null>(null);
   const layersRef = useRef(layers);
   const moveRef = useRef(onMove);
+  const playingRef = useRef(playing);
+  useEffect(() => { playingRef.current = playing; }, [playing]);
   useEffect(() => { layersRef.current = layers; }, [layers]);
   useEffect(() => { moveRef.current = onMove; }, [onMove]);
 
@@ -75,7 +78,24 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, cameraTrans
     };
     const observer = new ResizeObserver(resize); observer.observe(host.current); resize();
     let frameId = 0;
-    const render = () => { frameId = requestAnimationFrame(render); renderer.render(scene, camera); };
+    const motionClock = new THREE.Clock();
+    const render = () => {
+      frameId = requestAnimationFrame(render);
+      const time = motionClock.getElapsedTime();
+      if (playingRef.current) {
+        layersRef.current.forEach(layer => {
+          const mesh = meshes.current.get(layer.id);
+          if (!mesh) return;
+          const speed = Math.max(0.05, layer.motionSpeed ?? 1);
+          const phase = (parseInt(layer.id.slice(0, 5), 36) || 0) * 0.0007;
+          const wave = time * speed + phase;
+          mesh.position.x = layer.x + Math.sin(wave) * (layer.motionX ?? 0);
+          mesh.position.y = layer.y + Math.sin(wave * 0.72 + 0.8) * (layer.motionY ?? 0);
+          mesh.rotation.z = THREE.MathUtils.degToRad(layer.rotation + Math.sin(wave * 0.55) * (layer.motionRotation ?? 0));
+        });
+      }
+      renderer.render(scene, camera);
+    };
     render();
     return () => {
       cancelAnimationFrame(frameId); observer.disconnect();
@@ -241,7 +261,8 @@ export default function App() {
     const additions: Layer[] = Array.from(files).filter(file => file.type.startsWith('image/')).map(file => ({
       id: uid(), name: (() => { const base=file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g,' ').trim(); return /^file[_\s-]*[a-f0-9]{12,}$/i.test(base) ? 'Image ' + (layers.length + 1) : (base || 'Image ' + (layers.length + 1)); })(), fileName: file.name,
       url: URL.createObjectURL(file), x: 0, y: 0, z: layers.length * 0.02,
-      scale: 1, rotation: 0, visible: true, locked: false, opacity: 100, width: 0, height: 0
+      scale: 1, rotation: 0, visible: true, locked: false, opacity: 100, width: 0, height: 0,
+      motionX: 0, motionY: 0, motionRotation: 0, motionSpeed: 1
     }));
     setLayers(prev => [...prev, ...additions]);
     if (additions[0]) { setSelectedId(additions[0].id); setTab('properties'); }
@@ -347,7 +368,7 @@ export default function App() {
       </aside>
       <section className="editor-main">
         <div className="scene-toolbar"><div><span className="eyebrow">SCENE EDITOR</span><strong>Composition</strong></div><div className="toolbar-right"><span className="format-chip">9:16 PORTRAIT · 1080 × 1920</span><button className="small-icon" title="Fit composition"><Maximize2 size={15}/></button></div></div>
-        <Viewport layers={animatedLayers} selectedId={selectedId} onSelect={id=>{setSelectedId(id);setTab('properties');}} onMove={(id,x,y)=>updateLayer(id,{x,y})} onMoveEnd={commitCurrentKeyframe} cameraTransform={animatedCamera}/>
+        <Viewport layers={animatedLayers} selectedId={selectedId} onSelect={id=>{setSelectedId(id);setTab('properties');}} onMove={(id,x,y)=>updateLayer(id,{x,y})} onMoveEnd={commitCurrentKeyframe} cameraTransform={animatedCamera} playing={playing}/>
 <div className="timeline-panel">
  <div className="timeline-top"><div className="timeline-controls">
   <button className="play-btn" onClick={()=>{if(playhead>=duration)setPlayhead(0);setPlaying(v=>!v);}} title={playing?"Pause":"Play"}>{playing?<Pause size={15}/>:<Play size={15} fill="currentColor"/>}</button>
@@ -382,6 +403,13 @@ export default function App() {
           <label>Scale <b>{selected.scale.toFixed(2)}×</b><input type="range" min=".1" max="3" step=".01" value={selected.scale} onChange={e=>updateSelected({scale:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
           <label>Rotation <b>{selected.rotation}°</b><input type="range" min="-180" max="180" value={selected.rotation} onChange={e=>updateSelected({rotation:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
           <label>Opacity <b>{selected.opacity}%</b><input type="range" min="0" max="100" value={selected.opacity} onChange={e=>updateSelected({opacity:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
+          <div className="camera-control-card layer-motion-card"><div><Waves size={14}/> Ambient layer motion <small>Preview while playing</small></div>
+            <label>Horizontal drift <b>{(selected.motionX??0).toFixed(2)}</b><input type="range" min="0" max=".8" step=".01" value={selected.motionX??0} onChange={e=>updateSelected({motionX:+e.target.value})}/></label>
+            <label>Vertical drift <b>{(selected.motionY??0).toFixed(2)}</b><input type="range" min="0" max=".8" step=".01" value={selected.motionY??0} onChange={e=>updateSelected({motionY:+e.target.value})}/></label>
+            <label>Gentle rotation <b>{(selected.motionRotation??0).toFixed(1)}°</b><input type="range" min="0" max="12" step=".1" value={selected.motionRotation??0} onChange={e=>updateSelected({motionRotation:+e.target.value})}/></label>
+            <label>Motion speed <b>{(selected.motionSpeed??1).toFixed(1)}×</b><input type="range" min=".2" max="3" step=".1" value={selected.motionSpeed??1} onChange={e=>updateSelected({motionSpeed:+e.target.value})}/></label>
+            <button type="button" className="wide-secondary" onClick={()=>updateSelected({motionX:0,motionY:0,motionRotation:0,motionSpeed:1})}>Reset layer motion</button>
+          </div>
           <div className="camera-control-card"><div><Camera size={14}/> Camera framing</div>
             <label>Horizontal <b>{cameraTransform.x.toFixed(2)}</b><input type="range" min="-2" max="2" step=".01" value={cameraTransform.x} onChange={e=>updateCamera({x:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
             <label>Vertical <b>{cameraTransform.y.toFixed(2)}</b><input type="range" min="-3" max="3" step=".01" value={cameraTransform.y} onChange={e=>updateCamera({y:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
