@@ -20,9 +20,9 @@ const uid = () => Math.random().toString(36).slice(2, 10);
 const BOARD_W = 4.05;
 const BOARD_H = 7.2;
 
-function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, cameraTransform, playing, windStrength, windDirection }: {
+function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, cameraTransform, playing, windStrength, windDirection, atmosphere }: {
   layers: Layer[]; selectedId: string | null; onSelect: (id: string) => void;
-  onMove: (id: string, x: number, y: number) => void; onMoveEnd: () => void; cameraTransform: CameraTransform; playing: boolean; windStrength: number; windDirection: number;
+  onMove: (id: string, x: number, y: number) => void; onMoveEnd: () => void; cameraTransform: CameraTransform; playing: boolean; windStrength: number; windDirection: number; atmosphere: {clouds:boolean;mist:boolean;dust:boolean;intensity:number};
 }) {
   const host = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -34,6 +34,8 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, cameraTrans
   const moveRef = useRef(onMove);
   const playingRef = useRef(playing);
   const windRef = useRef({strength:windStrength,direction:windDirection});
+  const atmosphereRef = useRef(atmosphere);
+  useEffect(() => { atmosphereRef.current=atmosphere; }, [atmosphere]);
   useEffect(() => { windRef.current={strength:windStrength,direction:windDirection}; }, [windStrength,windDirection]);
   useEffect(() => { playingRef.current = playing; }, [playing]);
   useEffect(() => { layersRef.current = layers; }, [layers]);
@@ -52,6 +54,23 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, cameraTrans
     renderer.domElement.style.touchAction = 'none';
     host.current.appendChild(renderer.domElement);
     scene.add(new THREE.AmbientLight(0xffffff, 1.5));
+    const makeAtmosphere = (count:number,color:number,size:number,opacity:number,spreadX:number,spreadY:number,z:number) => {
+      const positions=new Float32Array(count*3), speeds=new Float32Array(count), phases=new Float32Array(count);
+      for(let i=0;i<count;i++){
+        positions[i*3]=(Math.random()-.5)*spreadX;
+        positions[i*3+1]=(Math.random()-.5)*spreadY;
+        positions[i*3+2]=z+(Math.random()-.5)*.25;
+        speeds[i]=.12+Math.random()*.3; phases[i]=Math.random()*Math.PI*2;
+      }
+      const geometry=new THREE.BufferGeometry();
+      geometry.setAttribute('position',new THREE.BufferAttribute(positions,3));
+      const material=new THREE.PointsMaterial({color,size,transparent:true,opacity,depthWrite:false,sizeAttenuation:true});
+      const points=new THREE.Points(geometry,material); points.visible=false; scene.add(points);
+      return {points,geometry,material,speeds,phases,count,spreadX,spreadY};
+    };
+    const cloudFx=makeAtmosphere(26,0x9ca8bc,.22,.12,BOARD_W*1.5,BOARD_H*1.25,-.4);
+    const mistFx=makeAtmosphere(115,0xc9d3df,.075,.22,BOARD_W*1.35,BOARD_H*.45,.65);
+    const dustFx=makeAtmosphere(100,0xf2d9a0,.025,.72,BOARD_W*1.25,BOARD_H*1.2,1.2);
 
     // Fixed 9:16 composition frame. Artwork is positioned inside this board.
     const board = new THREE.Group();
@@ -84,6 +103,24 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, cameraTrans
     const render = () => {
       frameId = requestAnimationFrame(render);
       const time = motionClock.getElapsedTime();
+      const delta=Math.min(motionClock.getDelta(),.04);
+      const fx=atmosphereRef.current;
+      const wind=windRef.current;
+      cloudFx.points.visible=fx.clouds; mistFx.points.visible=fx.mist; dustFx.points.visible=fx.dust;
+      const updateAtmosphere=(system:typeof cloudFx,rate:number,drift:number)=>{
+        if(!playingRef.current)return;
+        const attr=system.geometry.attributes.position as THREE.BufferAttribute;
+        for(let i=0;i<system.count;i++){
+          const x=attr.getX(i)+Math.cos(wind.direction)*wind.strength*drift*delta;
+          let y=attr.getY(i)+system.speeds[i]*rate*delta;
+          if(y>system.spreadY/2)y=-system.spreadY/2;
+          let nx=x;if(nx>system.spreadX/2)nx=-system.spreadX/2;if(nx< -system.spreadX/2)nx=system.spreadX/2;
+          attr.setXY(i,nx,y);
+        }
+        attr.needsUpdate=true;
+      };
+      updateAtmosphere(cloudFx,.10,.18); updateAtmosphere(mistFx,.035,.10); updateAtmosphere(dustFx,.12,.24);
+      cloudFx.material.opacity=.12*fx.intensity; mistFx.material.opacity=.22*fx.intensity; dustFx.material.opacity=.72*fx.intensity;
       if (playingRef.current) {
         layersRef.current.forEach(layer => {
           const mesh = meshes.current.get(layer.id);
@@ -103,6 +140,7 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, cameraTrans
     render();
     return () => {
       cancelAnimationFrame(frameId); observer.disconnect();
+      [cloudFx,mistFx,dustFx].forEach(fx=>{scene.remove(fx.points);fx.geometry.dispose();fx.material.dispose();});
       meshes.current.forEach(mesh => {
         scene.remove(mesh); mesh.geometry.dispose();
         const material = mesh.material as THREE.MeshBasicMaterial;
@@ -223,6 +261,7 @@ export default function App() {
   const [playing, setPlaying] = useState(false);
   const [windStrength, setWindStrength] = useState(0);
   const [windDirection, setWindDirection] = useState(0);
+  const [atmosphere, setAtmosphere] = useState({clouds:false,mist:false,dust:false,intensity:1});
   const [keyframes, setKeyframes] = useState<Keyframe[]>([]);
   const [cameraTransform, setCameraTransform] = useState<CameraTransform>({x:0,y:0,zoom:1,z:20});
   const [liveEditTime, setLiveEditTime] = useState<number | null>(null);
@@ -374,12 +413,12 @@ export default function App() {
       </aside>
       <section className="editor-main">
         <div className="scene-toolbar"><div><span className="eyebrow">SCENE EDITOR</span><strong>Composition</strong></div><div className="toolbar-right"><span className="format-chip">9:16 PORTRAIT · 1080 × 1920</span><button className="small-icon" title="Fit composition"><Maximize2 size={15}/></button></div></div>
-        <Viewport layers={animatedLayers} selectedId={selectedId} onSelect={id=>{setSelectedId(id);setTab('properties');}} onMove={(id,x,y)=>updateLayer(id,{x,y})} onMoveEnd={commitCurrentKeyframe} cameraTransform={animatedCamera} playing={playing} windStrength={windStrength} windDirection={windDirection}/>
+        <Viewport layers={animatedLayers} selectedId={selectedId} onSelect={id=>{setSelectedId(id);setTab('properties');}} onMove={(id,x,y)=>updateLayer(id,{x,y})} onMoveEnd={commitCurrentKeyframe} cameraTransform={animatedCamera} playing={playing} windStrength={windStrength} windDirection={windDirection} atmosphere={atmosphere}/>
 <div className="timeline-panel">
  <div className="timeline-top"><div className="timeline-controls">
   <button className="play-btn" onClick={()=>{if(playhead>=duration)setPlayhead(0);setPlaying(v=>!v);}} title={playing?"Pause":"Play"}>{playing?<Pause size={15}/>:<Play size={15} fill="currentColor"/>}</button>
   <button className="timeline-icon" onClick={()=>{setPlaying(false);setPlayhead(0);}} title="Go to start"><SkipBack size={15}/></button><span className="time-readout">{playhead.toFixed(2)}s / {duration.toFixed(1)}s</span>
- </div><div className="timeline-actions"><button className="keyframe-btn" onClick={addKeyframe} disabled={!layers.length}><KeyRound size={14}/> Add keyframe</button><label>Duration <select value={duration} onChange={e=>{setDuration(+e.target.value);setPlayhead(p=>Math.min(p,+e.target.value));setPlaying(false);}}>{[5,10,15,20,30,45,60,90,120].map(v=><option key={v} value={v}>{v}s</option>)}</select></label></div></div>
+ </div><div className="timeline-actions"><label className="atmosphere-toggle"><input type="checkbox" checked={atmosphere.clouds} onChange={e=>setAtmosphere(v=>({...v,clouds:e.target.checked}))}/> Clouds</label><label className="atmosphere-toggle"><input type="checkbox" checked={atmosphere.mist} onChange={e=>setAtmosphere(v=>({...v,mist:e.target.checked}))}/> Mist</label><label className="atmosphere-toggle"><input type="checkbox" checked={atmosphere.dust} onChange={e=>setAtmosphere(v=>({...v,dust:e.target.checked}))}/> Dust</label><label className="atmosphere-intensity">Atmosphere <input type="range" min="0" max="2" step=".05" value={atmosphere.intensity} onChange={e=>setAtmosphere(v=>({...v,intensity:+e.target.value}))}/></label><button className="keyframe-btn" onClick={addKeyframe} disabled={!layers.length}><KeyRound size={14}/> Add keyframe</button><label>Duration <select value={duration} onChange={e=>{setDuration(+e.target.value);setPlayhead(p=>Math.min(p,+e.target.value));setPlaying(false);}}>{[5,10,15,20,30,45,60,90,120].map(v=><option key={v} value={v}>{v}s</option>)}</select></label></div></div>
  <div className="timeline-ruler"><span>00:00</span><span>{(duration/4).toFixed(1)}s</span><span>{(duration/2).toFixed(1)}s</span><span>{(duration*.75).toFixed(1)}s</span><span>{duration.toFixed(1)}s</span></div>
  <div className="timeline-scrub"><input aria-label="Timeline playhead" type="range" min="0" max={duration} step=".01" value={playhead} onChange={e=>{setPlaying(false);setPlayhead(+e.target.value);}}/><div className="keyframe-markers">{keyframes.map(frame=><button key={frame.id} title={"Keyframe at "+frame.time.toFixed(2)+"s"} style={{left:(frame.time/duration*100)+"%"}} onClick={()=>{setPlaying(false);setPlayhead(frame.time);}}/>)}</div></div>
  <div className="timeline-bottom"><span><CircleDot size={11}/> {keyframes.length} keyframes</span><span>30 FPS · Smooth interpolation</span></div>
