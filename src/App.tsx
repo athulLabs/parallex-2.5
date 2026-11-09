@@ -55,7 +55,7 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, cameraTrans
     const starPositions=new Float32Array(420*3); for(let i=0;i<420;i++){starPositions[i*3]=(Math.random()-.5)*80;starPositions[i*3+1]=(Math.random()-.5)*90;starPositions[i*3+2]=-11.8;}
     const starGeometry=new THREE.BufferGeometry(); starGeometry.setAttribute('position',new THREE.BufferAttribute(starPositions,3));
     const starMaterial=new THREE.PointsMaterial({color:0xe8e5ff,size:.075,transparent:true,opacity:.75,depthWrite:false});
-    const stars=new THREE.Points(starGeometry,starMaterial); scene.add(stars);
+    const stars=new THREE.Points(starGeometry,starMaterial); stars.name='environment-stars'; scene.add(stars);
     const camera = new THREE.PerspectiveCamera(20.4, 1, 0.1, 100);
     camera.position.set(0, 0, 20);
     camera.lookAt(0, 0, 0);
@@ -191,7 +191,7 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, cameraTrans
       for(let i=0;i<18;i++){const x=(i*137)%512,y=130+(i*193)%650;const g=ctx.createRadialGradient(x,y,2,x,y,90);g.addColorStop(0,'rgba(164,112,255,.24)');g.addColorStop(1,'transparent');ctx.fillStyle=g;ctx.fillRect(x-90,y-90,180,180);}
     }
     texture.needsUpdate=true; material.opacity=environment.intensity; material.transparent=environment.intensity<1;
-    const starPoints=scene.children.find(o=>o.type==='Points') as THREE.Points|undefined;
+    const starPoints=scene.getObjectByName('environment-stars') as THREE.Points|undefined;
     if(starPoints) starPoints.visible=environment.stars && ['night','storm','cosmic','divine'].includes(environment.preset);
     if(starPoints) (starPoints.material as THREE.PointsMaterial).opacity=environment.preset==='storm'?.22:.75;
   }, [environment]);
