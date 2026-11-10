@@ -15,7 +15,7 @@ type EnvironmentSettings = { preset: EnvironmentPreset; intensity:number; horizo
 type Layer = {
   id: string; name: string; url: string; fileName: string;
   x: number; y: number; z: number; scale: number; rotation: number;
-  visible: boolean; locked: boolean; opacity: number; width: number; height: number;
+  visible: boolean; locked: boolean; opacity: number; width: number; height: number; isVideo?: boolean;
   motionX?: number; motionY?: number; motionRotation?: number; motionSpeed?: number;
 };
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -43,9 +43,9 @@ const readRecovery=async():Promise<any|null>=>{
 };
 const clearRecovery=async()=>{const db=await openAutosaveDb();await new Promise<void>((resolve,reject)=>{const tx=db.transaction(AUTOSAVE_STORE,'readwrite');tx.objectStore(AUTOSAVE_STORE).delete('latest');tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);});db.close();};
 
-function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoom, onCameraReset, cameraTransform, playing, windStrength, windDirection, atmosphere, environment }: {
+function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoom, onCameraReset, cameraTransform, playing, playhead, windStrength, windDirection, atmosphere, environment }: {
   layers: Layer[]; selectedId: string | null; onSelect: (id: string) => void;
-  onMove: (id: string, x: number, y: number) => void; onMoveEnd: () => void; onCameraZoom:(zoom:number)=>void; onCameraReset:()=>void; cameraTransform: CameraTransform; playing: boolean; windStrength: number; windDirection: number; atmosphere: {clouds:boolean;mist:boolean;dust:boolean;intensity:number}; environment: EnvironmentSettings;
+  onMove: (id: string, x: number, y: number) => void; onMoveEnd: () => void; onCameraZoom:(zoom:number)=>void; onCameraReset:()=>void; cameraTransform: CameraTransform; playing: boolean; playhead:number; windStrength: number; windDirection: number; atmosphere: {clouds:boolean;mist:boolean;dust:boolean;intensity:number}; environment: EnvironmentSettings;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -56,11 +56,13 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
   const layersRef = useRef(layers);
   const moveRef = useRef(onMove);
   const playingRef = useRef(playing);
+  const playheadRef = useRef(playhead);
   const windRef = useRef({strength:windStrength,direction:windDirection});
   const atmosphereRef = useRef(atmosphere);
   useEffect(() => { atmosphereRef.current=atmosphere; }, [atmosphere]);
   useEffect(() => { windRef.current={strength:windStrength,direction:windDirection}; }, [windStrength,windDirection]);
   useEffect(() => { playingRef.current = playing; }, [playing]);
+  useEffect(() => { playheadRef.current = playhead; }, [playhead]);
   useEffect(() => { layersRef.current = layers; }, [layers]);
   useEffect(() => { moveRef.current = onMove; }, [onMove]);
 
@@ -176,6 +178,7 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
       meshes.current.forEach(mesh => {
         scene.remove(mesh); mesh.geometry.dispose();
         const material = mesh.material as THREE.MeshBasicMaterial;
+        const video=mesh.userData.videoElement as HTMLVideoElement|undefined;if(video){video.pause();video.removeAttribute('src');video.load();}
         material.map?.dispose(); material.dispose();
       });
       meshes.current.clear(); frame.geometry.dispose(); (frame.material as THREE.Material).dispose();
@@ -225,6 +228,8 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
       if (!active.has(id)) {
         scene.remove(mesh); mesh.geometry.dispose();
         const material = mesh.material as THREE.MeshBasicMaterial;
+        const video=mesh.userData.videoElement as HTMLVideoElement|undefined;
+        if(video){video.pause();video.removeAttribute('src');video.load();}
         material.map?.dispose(); material.dispose(); meshes.current.delete(id);
       }
     });
@@ -240,8 +245,18 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
       if (mesh.userData.sourceUrl !== layer.url) {
         mesh.userData.sourceUrl = layer.url;
         const material = mesh.material as THREE.MeshBasicMaterial;
+        const oldVideo=mesh.userData.videoElement as HTMLVideoElement|undefined;
+        if(oldVideo){oldVideo.pause();oldVideo.removeAttribute('src');oldVideo.load();delete mesh.userData.videoElement;}
         material.map?.dispose();
-        new THREE.TextureLoader().load(layer.url, texture => {
+        if(layer.isVideo){
+          const video=document.createElement('video');video.src=layer.url;video.muted=true;video.loop=true;video.playsInline=true;video.preload='auto';video.crossOrigin='anonymous';
+          mesh.userData.videoElement=video;
+          const texture=new THREE.VideoTexture(video);texture.colorSpace=THREE.SRGBColorSpace;material.map=texture;material.needsUpdate=true;
+          const fitVideo=()=>{if(!meshes.current.has(layer.id)||mesh!.userData.sourceUrl!==layer.url)return;const aspect=(video.videoWidth||16)/(video.videoHeight||9);const boardAspect=BOARD_W/BOARD_H;const fitW=aspect>boardAspect?BOARD_W:BOARD_H*aspect;const fitH=aspect>boardAspect?BOARD_W/aspect:BOARD_H;mesh!.geometry.dispose();mesh!.geometry=new THREE.PlaneGeometry(fitW,fitH);};
+          video.addEventListener('loadedmetadata',fitVideo,{once:true});
+          if(video.readyState>=1)fitVideo();
+          if(playingRef.current){const start=()=>{video.currentTime=Math.min(playheadRef.current,Number.isFinite(video.duration)?video.duration:playheadRef.current);void video.play().catch(()=>{});};if(video.readyState>=2)start();else video.addEventListener('canplay',start,{once:true});}
+        }else new THREE.TextureLoader().load(layer.url, texture => {
           if (!meshes.current.has(layer.id) || mesh!.userData.sourceUrl !== layer.url) {
             texture.dispose();
             return;
@@ -266,6 +281,8 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
       (mesh.material as THREE.MeshBasicMaterial).opacity = layer.opacity / 100;
     });
   }, [layers]);
+
+  useEffect(()=>{meshes.current.forEach(mesh=>{const video=mesh.userData.videoElement as HTMLVideoElement|undefined;if(!video)return;if(playing){video.currentTime=Math.min(playheadRef.current,Number.isFinite(video.duration)?video.duration:playheadRef.current);void video.play().catch(()=>{});}else video.pause();});},[playing]);
 
   const pointerToWorld = (e: React.PointerEvent) => {
     const rect = host.current!.getBoundingClientRect();
@@ -415,9 +432,9 @@ export default function App() {
   const importFiles = (files: FileList | null) => {
     if(files?.length)recordHistory();
     if (!files) return;
-    const additions: Layer[] = Array.from(files).filter(file => file.type.startsWith('image/')).map(file => ({
+    const additions: Layer[] = Array.from(files).filter(file => file.type.startsWith('image/') || file.type.startsWith('video/')).map(file => ({
       id: uid(), name: (() => { const base=file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g,' ').trim(); return /^file[_\s-]*[a-f0-9]{12,}$/i.test(base) ? 'Image ' + (layers.length + 1) : (base || 'Image ' + (layers.length + 1)); })(), fileName: file.name,
-      url: URL.createObjectURL(file), x: 0, y: 0, z: layers.length * 0.02,
+      url: URL.createObjectURL(file), isVideo:file.type.startsWith('video/'), x: 0, y: 0, z: layers.length * 0.02,
       scale: 1, rotation: 0, visible: true, locked: false, opacity: 100, width: 0, height: 0,
       motionX: 0, motionY: 0, motionRotation: 0, motionSpeed: 1
     }));
@@ -493,7 +510,7 @@ export default function App() {
       recordHistory();
       const idMap=new Map<string,string>();
       const restored: Layer[] = payload.layers.map((item: any) => {
-        if (typeof item.dataUrl !== 'string' || typeof item.name !== 'string') throw new Error('Project contains an invalid image layer.');
+        if (typeof item.dataUrl !== 'string' || typeof item.name !== 'string') throw new Error('Project contains an invalid media layer.');
         const [header, encoded] = item.dataUrl.split(',');
         const mime = header.match(/data:(.*?);base64/)?.[1] || 'image/png';
         const binary = atob(encoded);
@@ -534,7 +551,7 @@ export default function App() {
       </aside>
       <section className="editor-main">
         <div className="scene-toolbar"><div><span className="eyebrow">SCENE EDITOR</span><strong>Composition</strong></div><div className="toolbar-right"><span className="format-chip">9:16 PORTRAIT · 1080 × 1920</span><button className="small-icon" title="Full preview" aria-label="Open full preview" onClick={()=>{const el=document.querySelector(".viewport") as HTMLElement|null;if(!el)return;const request=el.requestFullscreen||((el as any).webkitRequestFullscreen);if(request)request.call(el);else alert("Full-screen preview is not supported by this browser.");}}><Maximize2 size={15}/></button></div></div>
-        <Viewport layers={animatedLayers} selectedId={selectedId} onSelect={id=>{setSelectedId(id);setTab('properties');}} onMove={(id,x,y)=>updateLayer(id,{x,y})} onMoveEnd={commitCurrentKeyframe} onCameraZoom={zoom=>updateCamera({zoom})} onCameraReset={()=>{setCameraTransform({x:0,y:0,zoom:1.4,z:18,roll:0});setLiveEditTime(null);}} cameraTransform={animatedCamera} playing={playing} windStrength={windStrength} windDirection={windDirection} atmosphere={atmosphere} environment={environment}/>
+        <Viewport layers={animatedLayers} selectedId={selectedId} onSelect={id=>{setSelectedId(id);setTab('properties');}} onMove={(id,x,y)=>updateLayer(id,{x,y})} onMoveEnd={commitCurrentKeyframe} onCameraZoom={zoom=>updateCamera({zoom})} onCameraReset={()=>{setCameraTransform({x:0,y:0,zoom:1.4,z:18,roll:0});setLiveEditTime(null);}} cameraTransform={animatedCamera} playing={playing} playhead={playhead} windStrength={windStrength} windDirection={windDirection} atmosphere={atmosphere} environment={environment}/>
 <div className="timeline-panel">
  <div className="timeline-top"><div className="timeline-controls">
   <button className="play-btn" onClick={()=>{if(playhead>=duration)setPlayhead(0);setPlaying(v=>!v);}} title={playing?"Pause":"Play"}>{playing?<Pause size={15}/>:<Play size={15} fill="currentColor"/>}</button>
@@ -556,7 +573,7 @@ export default function App() {
           <p className="environment-note">Generated locally in Three.js. No HDRI upload, external image, API or paid credits required.</p>
         </div> : tab==='layers' ? <div className="layer-panel">
           <div className="panel-heading"><div><span className="eyebrow">SCENE CONTENT</span><strong>Layers <em>{layers.length}</em></strong></div><button className="add-btn" onClick={()=>fileRef.current?.click()}><Plus size={15}/> Add</button></div>
-          {layers.length===0 ? <div className="layer-empty"><Layers3 size={22}/><b>No layers yet</b><span>Import transparent PNGs or a complete artwork.</span><button onClick={()=>fileRef.current?.click()}><Upload size={14}/> Import artwork</button></div> :
+          {layers.length===0 ? <div className="layer-empty"><Layers3 size={22}/><b>No layers yet</b><span>Import transparent PNGs, artwork or video clips.</span><button onClick={()=>fileRef.current?.click()}><Upload size={14}/> Import artwork</button></div> :
             <div className="layer-list">{[...layers].reverse().map(layer=><div className={'layer-row '+(selectedId===layer.id?'selected':'')} key={layer.id} onClick={()=>{setSelectedId(layer.id);setTab('properties');}}>
               <div className="layer-thumb"><img src={layer.url}/></div><div className="layer-info"><b>{layer.name}</b><small>Z {layer.z.toFixed(2)} · {layer.locked?'Locked':'Editable'}</small></div>
               <button title="Toggle visibility" onClick={e=>{e.stopPropagation();updateLayer(layer.id,{visible:!layer.visible});}}>{layer.visible?<Eye size={15}/>:<EyeOff size={15}/>}</button>
@@ -598,6 +615,6 @@ export default function App() {
     </div>
     {settingsOpen && <div className="mask-overlay" role="dialog" aria-modal="true" aria-label="PARALLAX settings"><div className="mask-dialog settings-dialog"><div className="mask-header"><div><span className="eyebrow">WORKSPACE</span><strong>Settings</strong></div><button className="mask-close" onClick={()=>setSettingsOpen(false)} aria-label="Close settings">×</button></div><label className="environment-check"><input type="checkbox" checked={autosaveEnabled} onChange={e=>setAutosaveEnabled(e.target.checked)}/> Automatically save recovery copy on this device</label><p className="environment-note">Your scene and imported artwork are saved privately in this browser using IndexedDB. Autosave helps restore your work if the tab reloads.</p><button className="wide-secondary" onClick={()=>{void clearRecovery().then(()=>alert("Local recovery copy cleared." )).catch(()=>alert("Could not clear local recovery copy."));}}>Clear local recovery copy</button><div className="mask-footer"><span>PARALLAX 2.5 · Local workspace</span><button className="mask-apply" onClick={()=>setSettingsOpen(false)}>Done</button></div></div></div>}
     {maskLayerId && layers.find(layer=>layer.id===maskLayerId) && <MaskEditor src={layers.find(layer=>layer.id===maskLayerId)!.url} name={layers.find(layer=>layer.id===maskLayerId)!.name} onApply={blob=>applyMask(maskLayerId,blob)} onClose={()=>setMaskLayerId(null)}/>}
-    <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" multiple hidden onChange={e=>{importFiles(e.target.files);e.target.value='';}}/><input ref={projectFileRef} type="file" accept=".json,.parallax.json,application/json" hidden onChange={e=>{const file=e.target.files?.[0];if(file)void loadProject(file);e.target.value='';}}/>
+    <input ref={fileRef} type="file" accept="image/*,video/mp4,video/webm,video/quicktime" multiple hidden onChange={e=>{importFiles(e.target.files);e.target.value='';}}/><input ref={projectFileRef} type="file" accept=".json,.parallax.json,application/json" hidden onChange={e=>{const file=e.target.files?.[0];if(file)void loadProject(file);e.target.value='';}}/>
   </main>;
 }
