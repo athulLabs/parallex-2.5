@@ -131,7 +131,7 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
       const w = Math.max(1, host.current.clientWidth), h = Math.max(1, host.current.clientHeight);
       camera.aspect = w / h;
       fitDistance.current=Math.max(18,Math.max(BOARD_H,boardW/camera.aspect)*1.08/(2*Math.tan(THREE.MathUtils.degToRad(camera.fov/2))));
-      camera.position.z=Math.max(camera.position.z,fitDistance.current);
+      camera.position.z=fitDistance.current;
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
     };
