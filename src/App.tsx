@@ -51,6 +51,23 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
   const boardW=BOARD_H*(ASPECT_RATIOS[aspectRatio]??(9/16));
   const fitDistance=useRef(24);
   const cameraSettingsRef=useRef(cameraTransform); cameraSettingsRef.current=cameraTransform;
+  const applyCameraFraming = (camera:THREE.PerspectiveCamera, framing:CameraTransform) => {
+    const roll=THREE.MathUtils.degToRad(framing.roll??0);
+    const cos=Math.abs(Math.cos(roll)), sin=Math.abs(Math.sin(roll));
+    // Fit the rotated composition bounds, not the unrotated board.
+    const rotatedWidth=boardW*cos+BOARD_H*sin;
+    const rotatedHeight=BOARD_H*cos+boardW*sin;
+    const verticalFov=THREE.MathUtils.degToRad(camera.fov);
+    const fit=Math.max(rotatedHeight,rotatedWidth/Math.max(.01,camera.aspect))*1.16/(2*Math.tan(verticalFov/2));
+    fitDistance.current=fit;
+    const distance=fit*((framing.z??20)/20)/Math.max(.1,framing.zoom);
+    // Keep the camera axis square to the composition; pan by moving its look target.
+    camera.position.set(0,0,Math.max(.5,distance));
+    camera.up.set(0,1,0);
+    camera.lookAt(framing.x,framing.y,0);
+    camera.rotateZ(roll);
+    camera.updateProjectionMatrix();
+  };
   const sceneRef = useRef<THREE.Scene | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
@@ -131,13 +148,7 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
       if (!host.current) return;
       const w = Math.max(1, host.current.clientWidth), h = Math.max(1, host.current.clientHeight);
       camera.aspect = w / h;
-      fitDistance.current=Math.max(BOARD_H,boardW/camera.aspect)*1.16/(2*Math.tan(THREE.MathUtils.degToRad(camera.fov/2)));
-      const framing=cameraSettingsRef.current;
-      const distance=fitDistance.current*((framing.z??20)/20)/Math.max(.1,framing.zoom);
-      camera.position.set(framing.x,framing.y,Math.max(.5,distance));
-      camera.lookAt(0,0,0);
-      camera.rotation.z=(framing.roll??0)*Math.PI/180;
-      camera.updateProjectionMatrix();
+      applyCameraFraming(camera,cameraSettingsRef.current);
       renderer.setSize(w, h);
     };
     const observer = new ResizeObserver(resize); observer.observe(host.current); resize();
@@ -228,7 +239,7 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
     if(starPoints) starPoints.visible=environment.stars && ['night','storm','cosmic','divine'].includes(environment.preset);
     if(starPoints) (starPoints.material as THREE.PointsMaterial).opacity=environment.preset==='storm'?.22:.75;
   }, [environment]);
-  useEffect(() => { const camera=cameraRef.current; if(!camera) return; const distance=fitDistance.current*((cameraTransform.z??20)/20)/Math.max(.1,cameraTransform.zoom); camera.position.set(cameraTransform.x,cameraTransform.y,Math.max(.5,distance)); camera.lookAt(0,0,0); camera.rotation.z=(cameraTransform.roll??0)*Math.PI/180; camera.zoom=1; camera.updateProjectionMatrix(); }, [cameraTransform,aspectRatio]);
+  useEffect(() => { const camera=cameraRef.current; if(!camera) return; applyCameraFraming(camera,cameraTransform); }, [cameraTransform,aspectRatio]);
 
   useEffect(() => {
     const scene = sceneRef.current; if (!scene) return;
