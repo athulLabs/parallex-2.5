@@ -116,3 +116,22 @@
   .timeline-actions .keyframe-btn,.timeline-actions .keyframe-delete-btn{font-size:8px;padding:0 3px}
   .depth-presets button{font-size:9px}
 }
+
+/* Composition format selector and stable responsive preview */
+.format-control{display:flex;align-items:center;gap:6px;border:1px solid #51427b;background:#191629;border-radius:8px;padding:5px 8px;color:#9f8be0;min-width:0}
+.format-control>span{font:8px 'DM Mono';letter-spacing:1px}
+.format-select{max-width:130px;min-width:88px;height:27px;border:0;outline:0;background:#211b35;color:#e2d8ff;border-radius:5px;padding:0 6px;font:10px 'DM Mono'}
+.format-select option{background:#171522;color:#eee}
+@media(max-width:760px){
+  .toolbar-right{gap:5px;min-width:0}
+  .format-control{gap:4px;padding:4px 5px}
+  .format-control>span{font-size:7px}
+  .format-select{min-width:76px;max-width:100px;height:26px;font-size:9px}
+  .scene-toolbar .small-icon{width:30px;height:30px;flex:0 0 30px}
+  .viewport{isolation:isolate}
+  .viewport canvas{width:100%!important;height:100%!important;display:block;touch-action:none}
+}
+@media(max-width:390px){
+  .format-control>span{display:none}
+  .format-select{min-width:75px;max-width:86px}
+}
