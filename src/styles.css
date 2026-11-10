@@ -135,3 +135,25 @@
   .format-control>span{display:none}
   .format-select{min-width:75px;max-width:86px}
 }
+
+/* Mobile editing usability: give the composition and inspector usable space */
+@media(max-width:760px){
+  .workspace{grid-template-rows:minmax(0,1fr) 280px!important}
+  .inspector{height:280px!important;min-height:280px!important;max-height:280px!important}
+  .editor-main{padding:8px 7px 7px;gap:7px}
+  .viewport{min-height:220px}
+  .inspector-tabs{height:46px!important;min-height:46px!important;flex:0 0 46px!important}
+  .inspector-tabs button{font-size:12px;gap:8px}
+  .properties-panel,.layer-panel{padding:14px 14px 30px!important}
+  .properties-panel label{font-size:12px!important;margin:16px 0 20px!important}
+  .properties-panel input[type=range]{height:30px!important;margin-top:9px!important}
+  .properties-panel input:not([type=range]),.properties-panel select{min-height:42px;font-size:14px}
+  .properties-panel .panel-heading{top:-14px;margin:-14px -14px 14px;padding:14px}
+  .scene-toolbar strong{font-size:14px}
+  .format-select{min-width:90px;max-width:112px;height:32px;font-size:10px}
+  .scene-toolbar .small-icon{width:36px;height:36px;flex-basis:36px}
+}
+@media(max-width:390px){
+  .workspace{grid-template-rows:minmax(0,1fr) 260px!important}
+  .inspector{height:260px!important;min-height:260px!important;max-height:260px!important}
+}
