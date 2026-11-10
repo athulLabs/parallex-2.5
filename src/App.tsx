@@ -371,7 +371,6 @@ export default function App() {
   const autosaveTimer=useRef<number|null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const projectFileRef = useRef<HTMLInputElement>(null);
-  const selected = layers.find(layer => layer.id === selectedId) ?? null;
 
   const snapshotEditor=():EditorSnapshot=>({layers:layers.map(layer=>({...layer})),selectedId,projectName,duration,keyframes:keyframes.map(frame=>({...frame,layers:{...frame.layers},camera:{...frame.camera}})),cameraTransform:{...cameraTransform},aspectRatio});
   const recordHistory=()=>{
@@ -420,6 +419,7 @@ export default function App() {
     const rotationDelta=THREE.MathUtils.euclideanModulo(b.rotation-a.rotation+180,360)-180;
     return {...layer,x:mix('x'),y:mix('y'),z:mix('z'),scale:mix('scale'),rotation:a.rotation+rotationDelta*t,opacity:mix('opacity')};
   });
+  const selected = animatedLayers.find(layer => layer.id === selectedId) ?? layers.find(layer => layer.id === selectedId) ?? null;
   const animatedCamera = (() => {
     if(!keyframes.length || (liveEditTime !== null && Math.abs(playhead-liveEditTime)<0.02)) return cameraTransform;
     const frames=[...keyframes].sort((a,b)=>a.time-b.time);
@@ -435,7 +435,7 @@ export default function App() {
     camera:{...cameraSnapshot}
   });
   const writeKeyframe = (frame:Keyframe) => setKeyframes(prev=>[...prev.filter(item=>Math.abs(item.time-frame.time)>0.015),frame].sort((a,b)=>a.time-b.time));
-  const addKeyframe = () => { recordHistory(); const frame=makeFrame(playhead); writeKeyframe(frame); setSelectedKeyframeId(frame.id); };
+  const addKeyframe = () => { recordHistory(); const frame=makeFrame(playhead,layers,cameraTransform); writeKeyframe(frame); setSelectedKeyframeId(frame.id); setLiveEditTime(null); };
   const selectedKeyframe = keyframes.find(frame=>frame.id===selectedKeyframeId) ?? null;
   const deleteSelectedKeyframe = () => { const target=selectedKeyframe ?? [...keyframes].sort((a,b)=>Math.abs(a.time-playhead)-Math.abs(b.time-playhead))[0] ?? null; if(!target)return; recordHistory(); setKeyframes(prev=>prev.filter(frame=>frame.id!==target.id)); setSelectedKeyframeId(null); };
   const playbackStart = useRef(0);
@@ -457,14 +457,15 @@ export default function App() {
   const updateLayer = (id: string, patch: Partial<Layer>) => {
     recordHistory();
     setLiveEditTime(playhead);
-    setLayers(prev => prev.map(layer => layer.id === id ? {...layer,...patch} : layer));
+    const evaluated = animatedLayers.find(layer => layer.id === id);
+    setLayers(prev => prev.map(layer => layer.id === id ? {...layer,...(evaluated ?? {}),...patch} : layer));
   };
   const updateSelected = (patch: Partial<Layer>) => { if (selectedId) updateLayer(selectedId,patch); };
   const setSelectedDepth = (z:number) => { if(!selectedId)return; recordHistory(); const next=layers.map(layer=>layer.id===selectedId?{...layer,z}:layer); setLayers(next); const existing=keyframes.find(frame=>Math.abs(frame.time-playhead)<=0.015); if(existing){const frame=makeFrame(existing.time,next,cameraTransform);frame.id=existing.id;writeKeyframe(frame);} };
   const updateCamera = (patch:Partial<CameraTransform>) => {
     recordHistory();
     setLiveEditTime(playhead);
-    setCameraTransform(prev=>({...prev,...patch}));
+    setCameraTransform(prev=>({...prev,...animatedCamera,...patch}));
   };
   // Editing a property must never create a keyframe implicitly.
   // Only update a keyframe when the playhead is already on an existing marker.
@@ -623,10 +624,10 @@ export default function App() {
             <button type="button" className="wide-secondary" onClick={()=>updateSelected({motionX:0,motionY:0,motionRotation:0,motionSpeed:1})}>Reset layer motion</button>
           </div>
           <div className="camera-control-card"><div><Camera size={14}/> Camera framing</div>
-            <label>Horizontal <b>{cameraTransform.x.toFixed(2)}</b><input type="range" min="-8" max="8" step=".01" value={cameraTransform.x} onChange={e=>updateCamera({x:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
-            <label>Vertical <b>{cameraTransform.y.toFixed(2)}</b><input type="range" min="-12" max="12" step=".01" value={cameraTransform.y} onChange={e=>updateCamera({y:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
-            <label>Camera zoom <b>{cameraTransform.zoom.toFixed(2)}×</b><input type="range" min=".35" max="5" step=".01" value={cameraTransform.zoom} onChange={e=>updateCamera({zoom:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
-            <label>Camera distance <b>{(cameraTransform.z??20).toFixed(1)}</b><input type="range" min="6" max="50" step=".1" value={cameraTransform.z??18} onChange={e=>updateCamera({z:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label><label>Camera roll <b>{(cameraTransform.roll??0).toFixed(0)}°</b><input type="range" min="-45" max="45" step="1" value={cameraTransform.roll??0} onChange={e=>updateCamera({roll:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label><button type="button" className="wide-secondary" onClick={()=>{setCameraTransform({x:0,y:0,zoom:1,z:18,roll:0});setLiveEditTime(null);}}>Reset camera framing</button></div>
+            <label>Horizontal <b>{cameraTransform.x.toFixed(2)}</b><input type="range" min="-8" max="8" step=".01" value={animatedCamera.x} onChange={e=>updateCamera({x:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
+            <label>Vertical <b>{cameraTransform.y.toFixed(2)}</b><input type="range" min="-12" max="12" step=".01" value={animatedCamera.y} onChange={e=>updateCamera({y:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
+            <label>Camera zoom <b>{cameraTransform.zoom.toFixed(2)}×</b><input type="range" min=".35" max="5" step=".01" value={animatedCamera.zoom} onChange={e=>updateCamera({zoom:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
+            <label>Camera distance <b>{(cameraTransform.z??20).toFixed(1)}</b><input type="range" min="6" max="50" step=".1" value={animatedCamera.z??18} onChange={e=>updateCamera({z:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label><label>Camera roll <b>{(cameraTransform.roll??0).toFixed(0)}°</b><input type="range" min="-45" max="45" step="1" value={animatedCamera.roll??0} onChange={e=>updateCamera({roll:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label><button type="button" className="wide-secondary" onClick={()=>{setCameraTransform({x:0,y:0,zoom:1,z:18,roll:0});setLiveEditTime(null);}}>Reset camera framing</button></div>
           <button className="wide-secondary mask-open-btn" onClick={()=>setMaskLayerId(selected.id)}><Scan size={14}/> Open manual mask editor</button><button className="wide-secondary" onClick={()=>duplicateLayer(selected)}><Copy size={14}/> Duplicate layer</button>
         </> : <div className="layer-empty"><SlidersHorizontal size={22}/><b>No layer selected</b><span>Select a layer to edit its transforms.</span></div>}</div>}
         <div className="inspector-footer"><span className="live-dot"/> Drag layers in the canvas to reposition</div>
