@@ -237,7 +237,7 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
         material.map?.dispose(); material.dispose(); meshes.current.delete(id);
       }
     });
-    layers.forEach((layer, index) => {
+    layers.forEach(layer => {
       let mesh = meshes.current.get(layer.id);
       if (!mesh) {
         const material = new THREE.MeshBasicMaterial({ transparent: true, side: THREE.DoubleSide, depthWrite: false });
