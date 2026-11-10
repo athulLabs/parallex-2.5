@@ -146,18 +146,47 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
     const resizeCompositionFrame = () => { const ratio=boardW/BOARD_H; const fit=Math.min(.9,.9*camera.aspect/ratio); board.scale.setScalar(fit); };
     resizeCompositionFrame();
 
-    // Procedural triangulated fabric field behind the artwork, with real depth undulation (not a flat checkerboard).
-    const fabricGeometry = new THREE.PlaneGeometry(boardW*3.6, BOARD_H*2.5, 72, 50);
-    const fabricPositions = fabricGeometry.attributes.position as THREE.BufferAttribute;
-    for(let i=0;i<fabricPositions.count;i++){
-      const x=fabricPositions.getX(i), y=fabricPositions.getY(i);
-      const wave=Math.sin(x*.72+y*.24)*.19+Math.cos(y*.95-x*.18)*.13+Math.sin(x*.31)*Math.cos(y*.62)*.11;
-      fabricPositions.setZ(i,wave);
+    // True 3D surface grid: build connected X/Y grid lines over a rolling terrain mesh.
+    // Alternating diagonals create triangular topology without the one-directional stripe look.
+    const fabricGroup = new THREE.Group();
+    fabricGroup.name='environment-geometric-fabric';
+    const fabricWidth=boardW*3.8, fabricHeight=BOARD_H*3.1, fabricCols=58, fabricRows=48;
+    const fabricVertex=(ix:number,iy:number)=>{
+      const x=(ix/fabricCols-.5)*fabricWidth, y=(iy/fabricRows-.5)*fabricHeight;
+      const broad=Math.sin(x*.34+y*.13)*.95+Math.cos(y*.39-x*.17)*.72;
+      const rolling=Math.sin(x*.19)*Math.cos(y*.27)*.58+Math.cos((x+y)*.22)*.32;
+      return new THREE.Vector3(x,y,broad+rolling);
+    };
+    const fabricLinePositions:number[]=[];
+    const addFabricLine=(a:THREE.Vector3,b:THREE.Vector3)=>{fabricLinePositions.push(a.x,a.y,a.z,b.x,b.y,b.z);};
+    const vertices=Array.from({length:fabricRows+1},(_,iy)=>Array.from({length:fabricCols+1},(_,ix)=>fabricVertex(ix,iy)));
+    for(let iy=0;iy<=fabricRows;iy++) for(let ix=0;ix<=fabricCols;ix++){
+      if(ix<fabricCols)addFabricLine(vertices[iy][ix],vertices[iy][ix+1]);
+      if(iy<fabricRows)addFabricLine(vertices[iy][ix],vertices[iy+1][ix]);
+      if(ix<fabricCols&&iy<fabricRows){
+        if((ix+iy)%2===0)addFabricLine(vertices[iy][ix],vertices[iy+1][ix+1]);
+        else addFabricLine(vertices[iy][ix+1],vertices[iy+1][ix]);
+      }
     }
-    fabricGeometry.computeVertexNormals();
-    const fabricMaterial = new THREE.MeshBasicMaterial({color:0x8069c5,wireframe:true,transparent:true,opacity:.28,depthWrite:false,side:THREE.DoubleSide});
-    const fabric = new THREE.Mesh(fabricGeometry,fabricMaterial);
-    fabric.name='environment-geometric-fabric'; fabric.position.set(0,-1.15,-3.35); fabric.renderOrder=-2; scene.add(fabric);
+    const fabricGeometry=new THREE.BufferGeometry();
+    fabricGeometry.setAttribute('position',new THREE.Float32BufferAttribute(fabricLinePositions,3));
+    const fabricMaterial=new THREE.LineBasicMaterial({color:0x9b83ed,transparent:true,opacity:.42,depthWrite:false});
+    const fabric=new THREE.LineSegments(fabricGeometry,fabricMaterial);
+    fabricGroup.add(fabric);
+    // A faint shaded surface gives the wire grid readable volume rather than a flat overlay.
+    const surfacePositions:number[]=[];
+    const surfaceIndices:number[]=[];
+    for(let iy=0;iy<=fabricRows;iy++)for(let ix=0;ix<=fabricCols;ix++){const v=vertices[iy][ix];surfacePositions.push(v.x,v.y,v.z);}
+    for(let iy=0;iy<fabricRows;iy++)for(let ix=0;ix<fabricCols;ix++){
+      const a=iy*(fabricCols+1)+ix,b=a+1,d=(iy+1)*(fabricCols+1)+ix,e=d+1;
+      surfaceIndices.push(a,d,b,b,d,e);
+    }
+    const surfaceGeometry=new THREE.BufferGeometry();
+    surfaceGeometry.setAttribute('position',new THREE.Float32BufferAttribute(surfacePositions,3));
+    surfaceGeometry.setIndex(surfaceIndices);surfaceGeometry.computeVertexNormals();
+    const surfaceMaterial=new THREE.MeshBasicMaterial({color:0x24203d,transparent:true,opacity:.16,depthWrite:false,side:THREE.DoubleSide});
+    const surface=new THREE.Mesh(surfaceGeometry,surfaceMaterial);fabricGroup.add(surface);
+    fabricGroup.position.set(0,-1.1,-3.35);fabricGroup.renderOrder=-2;scene.add(fabricGroup);
     sceneRef.current = scene; rendererRef.current = renderer; cameraRef.current = camera;
 
     const resize = () => {
@@ -212,7 +241,7 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
     return () => {
       cancelAnimationFrame(frameId); observer.disconnect();
       [cloudFx,mistFx,dustFx].forEach(fx=>{scene.remove(fx.points);fx.geometry.dispose();fx.material.dispose();});
-      scene.remove(fabric); fabricGeometry.dispose(); fabricMaterial.dispose(); camera.remove(board);
+      scene.remove(fabricGroup); fabricGeometry.dispose(); fabricMaterial.dispose(); surfaceGeometry.dispose(); surfaceMaterial.dispose(); camera.remove(board);
       meshes.current.forEach(mesh => {
         scene.remove(mesh); mesh.geometry.dispose();
         const material = mesh.material as THREE.MeshBasicMaterial;
@@ -256,8 +285,8 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
     const starPoints=scene.getObjectByName('environment-stars') as THREE.Points|undefined;
     if(starPoints) starPoints.visible=environment.stars && ['night','storm','cosmic','divine'].includes(environment.preset);
     if(starPoints) (starPoints.material as THREE.PointsMaterial).opacity=environment.preset==='storm'?.22:.75;
-    const fabric=scene.getObjectByName('environment-geometric-fabric') as THREE.Mesh|undefined;
-    if(fabric){fabric.visible=environment.fabric;fabric.scale.setScalar(environment.fabricScale);const fm=fabric.material as THREE.MeshBasicMaterial;fm.opacity=environment.fabricOpacity;fm.color.setRGB(.25+environment.fabricGlow*.28,.19+environment.fabricGlow*.2,.42+environment.fabricGlow*.3);}
+    const fabric=scene.getObjectByName('environment-geometric-fabric') as THREE.Group|undefined;
+    if(fabric){fabric.visible=environment.fabric;fabric.scale.setScalar(environment.fabricScale);const lines=fabric.children[0] as THREE.LineSegments;const lm=lines.material as THREE.LineBasicMaterial;lm.opacity=environment.fabricOpacity;lm.color.setRGB(.28+environment.fabricGlow*.42,.22+environment.fabricGlow*.34,.48+environment.fabricGlow*.42);const sm=(fabric.children[1] as THREE.Mesh).material as THREE.MeshBasicMaterial;sm.opacity=environment.fabricOpacity*.48;}
   }, [environment]);
   useEffect(() => { const camera=cameraRef.current; if(!camera) return; applyCameraFraming(camera,cameraTransform); }, [cameraTransform,aspectRatio]);
 
@@ -629,7 +658,7 @@ export default function App() {
           <label>Fabric scale <b>{environment.fabricScale.toFixed(2)}×</b><input type="range" min="0.45" max="2.2" step=".05" value={environment.fabricScale} onChange={e=>setEnvironment(v=>({...v,fabricScale:+e.target.value}))}/></label>
           <label>Fabric opacity <b>{Math.round(environment.fabricOpacity*100)}%</b><input type="range" min="0" max="0.8" step=".01" value={environment.fabricOpacity} onChange={e=>setEnvironment(v=>({...v,fabricOpacity:+e.target.value}))}/></label>
           <label>Fabric glow <b>{Math.round(environment.fabricGlow*100)}%</b><input type="range" min="0" max="1" step=".01" value={environment.fabricGlow} onChange={e=>setEnvironment(v=>({...v,fabricGlow:+e.target.value}))}/></label>
-          <p className="environment-note">The fabric is a locally generated, triangulated 3D wave mesh with adjustable scale, visibility and glow. No external assets or paid credits.</p>
+          <p className="environment-note">A connected 3D terrain grid with rolling peaks, valleys, cross-lines and alternating triangular topology — not a flat repeating pattern. Adjust visibility, scale, opacity and glow.</p>
         </div> : tab==='layers' ? <div className="layer-panel">
           <div className="panel-heading"><div><span className="eyebrow">SCENE CONTENT</span><strong>Layers <em>{layers.length}</em></strong></div><button className="add-btn" onClick={()=>fileRef.current?.click()}><Plus size={15}/> Add</button></div>
           {layers.length===0 ? <div className="layer-empty"><Layers3 size={22}/><b>No layers yet</b><span>Import transparent PNGs, artwork or video clips.</span><button onClick={()=>fileRef.current?.click()}><Upload size={14}/> Import artwork</button></div> :
