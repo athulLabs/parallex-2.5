@@ -131,7 +131,6 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
       const w = Math.max(1, host.current.clientWidth), h = Math.max(1, host.current.clientHeight);
       camera.aspect = w / h;
       fitDistance.current=Math.max(18,Math.max(BOARD_H,boardW/camera.aspect)*1.08/(2*Math.tan(THREE.MathUtils.degToRad(camera.fov/2))));
-      camera.position.z=fitDistance.current;
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
     };
@@ -223,7 +222,7 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
     if(starPoints) starPoints.visible=environment.stars && ['night','storm','cosmic','divine'].includes(environment.preset);
     if(starPoints) (starPoints.material as THREE.PointsMaterial).opacity=environment.preset==='storm'?.22:.75;
   }, [environment]);
-  useEffect(() => { const camera=cameraRef.current; if(!camera) return; camera.position.set(cameraTransform.x,cameraTransform.y,Math.max(cameraTransform.z??20,fitDistance.current)); camera.lookAt(0,0,0); camera.rotation.z=(cameraTransform.roll??0)*Math.PI/180; camera.zoom=cameraTransform.zoom; camera.updateProjectionMatrix(); }, [cameraTransform,aspectRatio]);
+  useEffect(() => { const camera=cameraRef.current; if(!camera) return; camera.position.set(cameraTransform.x,cameraTransform.y,Math.max(0.5,cameraTransform.z??20)); camera.lookAt(0,0,0); camera.rotation.z=(cameraTransform.roll??0)*Math.PI/180; camera.zoom=cameraTransform.zoom; camera.updateProjectionMatrix(); }, [cameraTransform,aspectRatio]);
 
   useEffect(() => {
     const scene = sceneRef.current; if (!scene) return;
@@ -465,7 +464,7 @@ export default function App() {
   const updateCamera = (patch:Partial<CameraTransform>) => {
     recordHistory();
     setLiveEditTime(playhead);
-    setCameraTransform(prev=>({...prev,...animatedCamera,...patch}));
+    setCameraTransform(prev=>({...prev,...(liveEditTime===null?animatedCamera:prev),...patch}));
   };
   // Editing a property must never create a keyframe implicitly.
   // Only update a keyframe when the playhead is already on an existing marker.
@@ -624,10 +623,10 @@ export default function App() {
             <button type="button" className="wide-secondary" onClick={()=>updateSelected({motionX:0,motionY:0,motionRotation:0,motionSpeed:1})}>Reset layer motion</button>
           </div>
           <div className="camera-control-card"><div><Camera size={14}/> Camera framing</div>
-            <label>Horizontal <b>{cameraTransform.x.toFixed(2)}</b><input type="range" min="-8" max="8" step=".01" value={animatedCamera.x} onChange={e=>updateCamera({x:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
-            <label>Vertical <b>{cameraTransform.y.toFixed(2)}</b><input type="range" min="-12" max="12" step=".01" value={animatedCamera.y} onChange={e=>updateCamera({y:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
-            <label>Camera zoom <b>{cameraTransform.zoom.toFixed(2)}×</b><input type="range" min=".35" max="5" step=".01" value={animatedCamera.zoom} onChange={e=>updateCamera({zoom:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
-            <label>Camera distance <b>{(cameraTransform.z??20).toFixed(1)}</b><input type="range" min="6" max="50" step=".1" value={animatedCamera.z??18} onChange={e=>updateCamera({z:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label><label>Camera roll <b>{(cameraTransform.roll??0).toFixed(0)}°</b><input type="range" min="-45" max="45" step="1" value={animatedCamera.roll??0} onChange={e=>updateCamera({roll:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label><button type="button" className="wide-secondary" onClick={()=>{setCameraTransform({x:0,y:0,zoom:1,z:18,roll:0});setLiveEditTime(null);}}>Reset camera framing</button></div>
+            <label>Horizontal <b>{animatedCamera.x.toFixed(2)}</b><input type="range" min="-8" max="8" step=".01" value={animatedCamera.x} onChange={e=>updateCamera({x:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
+            <label>Vertical <b>{animatedCamera.y.toFixed(2)}</b><input type="range" min="-12" max="12" step=".01" value={animatedCamera.y} onChange={e=>updateCamera({y:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
+            <label>Camera zoom <b>{animatedCamera.zoom.toFixed(2)}×</b><input type="range" min=".35" max="5" step=".01" value={animatedCamera.zoom} onChange={e=>updateCamera({zoom:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
+            <label>Camera distance <b>{(animatedCamera.z??20).toFixed(1)}</b><input type="range" min="6" max="50" step=".1" value={animatedCamera.z??18} onChange={e=>updateCamera({z:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label><label>Camera roll <b>{(animatedCamera.roll??0).toFixed(0)}°</b><input type="range" min="-45" max="45" step="1" value={animatedCamera.roll??0} onChange={e=>updateCamera({roll:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label><button type="button" className="wide-secondary" onClick={()=>{recordHistory();setCameraTransform({x:0,y:0,zoom:1,z:18,roll:0});setLiveEditTime(null);commitCurrentKeyframe();}}>Reset camera framing</button></div>
           <button className="wide-secondary mask-open-btn" onClick={()=>setMaskLayerId(selected.id)}><Scan size={14}/> Open manual mask editor</button><button className="wide-secondary" onClick={()=>duplicateLayer(selected)}><Copy size={14}/> Duplicate layer</button>
         </> : <div className="layer-empty"><SlidersHorizontal size={22}/><b>No layer selected</b><span>Select a layer to edit its transforms.</span></div>}</div>}
         <div className="inspector-footer"><span className="live-dot"/> Drag layers in the canvas to reposition</div>
