@@ -286,7 +286,8 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
       mesh.scale.setScalar(layer.scale);
       mesh.rotation.z = THREE.MathUtils.degToRad(layer.rotation);
       mesh.visible = layer.visible;
-      mesh.renderOrder = index;
+      // Respect the actual Z depth; array-index render order made background layers draw over foreground objects.
+      mesh.renderOrder = Math.round((layer.z + 8) * 100);
       (mesh.material as THREE.MeshBasicMaterial).opacity = layer.opacity / 100;
     });
   }, [layers,aspectRatio]);
@@ -485,6 +486,7 @@ export default function App() {
   const removeLayer = (id: string) => {
     recordHistory();
     setLayers(prev => prev.filter(layer=>layer.id!==id));
+    setKeyframes(prev => prev.map(frame => { const nextLayers={...frame.layers}; delete nextLayers[id]; return {...frame,layers:nextLayers}; }));
     if(selectedId===id) setSelectedId(null);
   };
   const duplicateLayer = (layer: Layer) => {
@@ -572,10 +574,10 @@ export default function App() {
  <div className="timeline-top"><div className="timeline-controls">
   <button className="play-btn" onClick={()=>{if(playhead>=duration)setPlayhead(0);setPlaying(v=>!v);}} title={playing?"Pause":"Play"}>{playing?<Pause size={15}/>:<Play size={15} fill="currentColor"/>}</button>
   <button className="timeline-icon" onClick={()=>{setPlaying(false);setPlayhead(0);}} title="Go to start"><SkipBack size={15}/></button><span className="time-readout">{playhead.toFixed(2)}s / {duration.toFixed(1)}s</span>
- </div><div className="timeline-actions"><label className="atmosphere-toggle"><input type="checkbox" checked={atmosphere.clouds} onChange={e=>setAtmosphere(v=>({...v,clouds:e.target.checked}))}/> Clouds</label><label className="atmosphere-toggle"><input type="checkbox" checked={atmosphere.mist} onChange={e=>setAtmosphere(v=>({...v,mist:e.target.checked}))}/> Mist</label><label className="atmosphere-toggle"><input type="checkbox" checked={atmosphere.dust} onChange={e=>setAtmosphere(v=>({...v,dust:e.target.checked}))}/> Dust</label><label className="atmosphere-intensity">Atmosphere <input type="range" min="0" max="2" step=".05" value={atmosphere.intensity} onChange={e=>setAtmosphere(v=>({...v,intensity:+e.target.value}))}/></label><button className="keyframe-btn" onClick={addKeyframe} title="Add a keyframe for the current camera and layer positions"><KeyRound size={14}/> Add keyframe</button>{keyframes.length>0 && <button className="keyframe-delete-btn" onClick={deleteSelectedKeyframe} title={selectedKeyframe?"Delete selected keyframe":"Delete the keyframe nearest the playhead"}><Trash2 size={13}/> Delete</button>}<label>Duration <select value={duration} onChange={e=>{recordHistory();setDuration(+e.target.value);setPlayhead(p=>Math.min(p,+e.target.value));setPlaying(false);}}>{[5,10,15,20,30,45,60,90,120].map(v=><option key={v} value={v}>{v}s</option>)}</select></label></div></div>
+ </div><div className="timeline-actions"><label className="atmosphere-toggle"><input type="checkbox" checked={atmosphere.clouds} onChange={e=>setAtmosphere(v=>({...v,clouds:e.target.checked}))}/> Clouds</label><label className="atmosphere-toggle"><input type="checkbox" checked={atmosphere.mist} onChange={e=>setAtmosphere(v=>({...v,mist:e.target.checked}))}/> Mist</label><label className="atmosphere-toggle"><input type="checkbox" checked={atmosphere.dust} onChange={e=>setAtmosphere(v=>({...v,dust:e.target.checked}))}/> Dust</label><label className="atmosphere-intensity">Atmosphere <input type="range" min="0" max="2" step=".05" value={atmosphere.intensity} onChange={e=>setAtmosphere(v=>({...v,intensity:+e.target.value}))}/></label><button className="keyframe-btn" onClick={addKeyframe} title="Add a keyframe for the current camera and layer positions"><KeyRound size={14}/> Add keyframe</button><label>Duration <select value={duration} onChange={e=>{recordHistory();setDuration(+e.target.value);setPlayhead(p=>Math.min(p,+e.target.value));setPlaying(false);}}>{[5,10,15,20,30,45,60,90,120].map(v=><option key={v} value={v}>{v}s</option>)}</select></label></div></div>
  <div className="timeline-ruler"><span>00:00</span><span>{(duration/4).toFixed(1)}s</span><span>{(duration/2).toFixed(1)}s</span><span>{(duration*.75).toFixed(1)}s</span><span>{duration.toFixed(1)}s</span></div>
  <div className="timeline-scrub"><input aria-label="Timeline playhead" type="range" min="0" max={duration} step=".01" value={playhead} onChange={e=>{setPlaying(false);setPlayhead(+e.target.value);}}/><div className="keyframe-markers">{keyframes.map(frame=><button key={frame.id} className={selectedKeyframeId===frame.id?"selected":""} aria-label={"Select keyframe at "+frame.time.toFixed(2)+" seconds"} title={"Keyframe at "+frame.time.toFixed(2)+"s · tap to select"} style={{left:(frame.time/duration*100)+"%"}} onClick={()=>{setPlaying(false);setSelectedKeyframeId(frame.id);setPlayhead(frame.time);}}/>)}</div></div>
- <div className="timeline-bottom"><span><CircleDot size={11}/> {keyframes.length} keyframes</span><span>30 FPS · Smooth interpolation</span></div>
+ <div className="timeline-bottom"><span><CircleDot size={11}/> {keyframes.length} keyframes</span><button className="keyframe-delete-bottom" disabled={!keyframes.length} onClick={deleteSelectedKeyframe} title={selectedKeyframe?"Delete selected keyframe":"Delete the keyframe nearest the playhead"}><Trash2 size={12}/> Delete keyframe</button><span>30 FPS · Smooth interpolation</span></div>
 </div>
       </section>
       <aside className="inspector">
@@ -593,7 +595,7 @@ export default function App() {
             <div className="layer-list">{[...layers].reverse().map(layer=><div className={'layer-row '+(selectedId===layer.id?'selected':'')} key={layer.id} onClick={()=>{setSelectedId(layer.id);setTab('properties');}}>
               <div className="layer-thumb">{layer.isVideo?<Film size={18}/>:<img src={layer.url} alt=""/>}</div><div className="layer-info"><b>{layer.name}</b><small>{layer.isVideo?'VIDEO · ':'IMAGE · '}Z {layer.z.toFixed(2)} · {layer.locked?'Locked':'Editable'}</small></div>
               <button title="Toggle visibility" onClick={e=>{e.stopPropagation();updateLayer(layer.id,{visible:!layer.visible});}}>{layer.visible?<Eye size={15}/>:<EyeOff size={15}/>}</button>
-              <button title="Lock layer" onClick={e=>{e.stopPropagation();updateLayer(layer.id,{locked:!layer.locked});}}>{layer.locked?<Lock size={14}/>:<Unlock size={14}/>}</button>
+              <button title="Lock layer" onClick={e=>{e.stopPropagation();updateLayer(layer.id,{locked:!layer.locked});}}>{layer.locked?<Lock size={14}/>:<Unlock size={14}/>}</button><button className="layer-delete-btn" title={'Delete '+layer.name} aria-label={'Delete '+layer.name} onClick={e=>{e.stopPropagation();removeLayer(layer.id);}}><Trash2 size={14}/></button>
             </div>)}</div>}
         </div> : <div className="properties-panel">{selected ? <>
           <div className="panel-heading"><div><span className="eyebrow">SELECTED LAYER</span><strong>{selected.name}</strong></div><button className="danger-icon" title="Delete layer" onClick={()=>removeLayer(selected.id)}><Trash2 size={16}/></button></div>
@@ -605,7 +607,7 @@ export default function App() {
             <button type="button" onClick={()=>setSelectedDepth(-8)}>Background</button>
             <button type="button" onClick={()=>setSelectedDepth(0)}>Midground</button>
             <button type="button" onClick={()=>setSelectedDepth(8)}>Foreground</button>
-          </div>
+          </div><p className="depth-help">Negative Z = farther behind · Positive Z = closer to camera.</p>
           <label>Scale <b>{selected.scale.toFixed(2)}×</b><input type="range" min=".1" max="3" step=".01" value={selected.scale} onChange={e=>updateSelected({scale:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
           <label>Rotation <b>{selected.rotation}°</b><input type="range" min="-180" max="180" value={selected.rotation} onChange={e=>updateSelected({rotation:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
           <label>Opacity <b>{selected.opacity}%</b><input type="range" min="0" max="100" value={selected.opacity} onChange={e=>updateSelected({opacity:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
