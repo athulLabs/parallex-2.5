@@ -50,6 +50,7 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
   const host = useRef<HTMLDivElement>(null);
   const boardW=BOARD_H*(ASPECT_RATIOS[aspectRatio]??(9/16));
   const fitDistance=useRef(24);
+  const cameraSettingsRef=useRef(cameraTransform); cameraSettingsRef.current=cameraTransform;
   const sceneRef = useRef<THREE.Scene | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
@@ -130,7 +131,12 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
       if (!host.current) return;
       const w = Math.max(1, host.current.clientWidth), h = Math.max(1, host.current.clientHeight);
       camera.aspect = w / h;
-      fitDistance.current=Math.max(18,Math.max(BOARD_H,boardW/camera.aspect)*1.08/(2*Math.tan(THREE.MathUtils.degToRad(camera.fov/2))));
+      fitDistance.current=Math.max(BOARD_H,boardW/camera.aspect)*1.16/(2*Math.tan(THREE.MathUtils.degToRad(camera.fov/2)));
+      const framing=cameraSettingsRef.current;
+      const distance=fitDistance.current*((framing.z??20)/20)/Math.max(.1,framing.zoom);
+      camera.position.set(framing.x,framing.y,Math.max(.5,distance));
+      camera.lookAt(framing.x,framing.y,0);
+      camera.rotation.z=(framing.roll??0)*Math.PI/180;
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
     };
@@ -222,7 +228,7 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
     if(starPoints) starPoints.visible=environment.stars && ['night','storm','cosmic','divine'].includes(environment.preset);
     if(starPoints) (starPoints.material as THREE.PointsMaterial).opacity=environment.preset==='storm'?.22:.75;
   }, [environment]);
-  useEffect(() => { const camera=cameraRef.current; if(!camera) return; camera.position.set(cameraTransform.x,cameraTransform.y,Math.max(0.5,cameraTransform.z??20)); camera.lookAt(0,0,0); camera.rotation.z=(cameraTransform.roll??0)*Math.PI/180; camera.zoom=cameraTransform.zoom; camera.updateProjectionMatrix(); }, [cameraTransform,aspectRatio]);
+  useEffect(() => { const camera=cameraRef.current; if(!camera) return; const distance=fitDistance.current*((cameraTransform.z??20)/20)/Math.max(.1,cameraTransform.zoom); camera.position.set(cameraTransform.x,cameraTransform.y,Math.max(.5,distance)); camera.lookAt(cameraTransform.x,cameraTransform.y,0); camera.rotation.z=(cameraTransform.roll??0)*Math.PI/180; camera.zoom=1; camera.updateProjectionMatrix(); }, [cameraTransform,aspectRatio]);
 
   useEffect(() => {
     const scene = sceneRef.current; if (!scene) return;
@@ -395,7 +401,7 @@ export default function App() {
     readRecovery().then(payload=>{
       if(!active||!payload||!Array.isArray(payload.layers))return;
       const restored:Layer[]=payload.layers.map((item:any)=>{const {blob,...meta}=item;if(!(blob instanceof Blob))throw new Error('Recovery image data is unavailable');return {...meta,url:URL.createObjectURL(blob)};});
-      if(active){setLayers(restored);setSelectedId(payload.selectedId??restored[0]?.id??null);setProjectName(payload.projectName||'Untitled Scene');setDuration(Number.isFinite(payload.duration)?payload.duration:10);setKeyframes(Array.isArray(payload.keyframes)?payload.keyframes:[]);setCameraTransform(payload.cameraTransform||{x:0,y:0,zoom:1,z:18,roll:0});setAspectRatio(payload.aspectRatio&&ASPECT_RATIOS[payload.aspectRatio]?payload.aspectRatio:'9:16');}
+      if(active){setLayers(restored);setSelectedId(payload.selectedId??restored[0]?.id??null);setProjectName(payload.projectName||'Untitled Scene');setDuration(Number.isFinite(payload.duration)?payload.duration:10);setKeyframes(Array.isArray(payload.keyframes)?payload.keyframes:[]);setCameraTransform(payload.cameraTransform||{x:0,y:0,zoom:1,z:20,roll:0});setAspectRatio(payload.aspectRatio&&ASPECT_RATIOS[payload.aspectRatio]?payload.aspectRatio:'9:16');}
     }).catch(()=>{}).finally(()=>{if(active)setHydrated(true);});
     return()=>{active=false;};
   },[]);
@@ -568,8 +574,8 @@ export default function App() {
         <div className="rail-bottom"><button className="rail-item" onClick={()=>setSettingsOpen(true)}><Settings2/><span>Settings</span></button></div>
       </aside>
       <section className="editor-main">
-        <div className="scene-toolbar"><div><span className="eyebrow">SCENE EDITOR</span><strong>Composition</strong></div><div className="toolbar-right"><label className="format-control"><span>FORMAT</span><select className="format-select" value={aspectRatio} onChange={e=>{recordHistory();setAspectRatio(e.target.value);setCameraTransform(v=>({...v,x:0,y:0,z:18,zoom:1,roll:0}));}} aria-label="Composition aspect ratio">{Object.keys(ASPECT_RATIOS).map(r=><option key={r} value={r}>{r} {r==='9:16'?'Portrait':r==='16:9'?'Landscape':r==='1:1'?'Square':r==='4:5'?'Portrait':'Portrait'}</option>)}</select></label><button className="small-icon" title="Full preview" aria-label="Open full preview" onClick={()=>{const el=document.querySelector(".viewport") as HTMLElement|null;if(!el)return;const request=el.requestFullscreen||((el as any).webkitRequestFullscreen);if(request)request.call(el);else alert("Full-screen preview is not supported by this browser.");}}><Maximize2 size={15}/></button></div></div>
-        <Viewport aspectRatio={aspectRatio} layers={animatedLayers} selectedId={selectedId} onSelect={id=>{setSelectedId(id);setTab('properties');}} onMove={(id,x,y)=>updateLayer(id,{x,y})} onMoveEnd={commitCurrentKeyframe} onCameraZoom={zoom=>updateCamera({zoom})} onCameraReset={()=>{setCameraTransform({x:0,y:0,zoom:1,z:18,roll:0});setLiveEditTime(null);}} cameraTransform={animatedCamera} playing={playing} playhead={playhead} windStrength={windStrength} windDirection={windDirection} atmosphere={atmosphere} environment={environment}/>
+        <div className="scene-toolbar"><div><span className="eyebrow">SCENE EDITOR</span><strong>Composition</strong></div><div className="toolbar-right"><label className="format-control"><span>FORMAT</span><select className="format-select" value={aspectRatio} onChange={e=>{recordHistory();setAspectRatio(e.target.value);setCameraTransform(v=>({...v,x:0,y:0,z:20,zoom:1,roll:0}));}} aria-label="Composition aspect ratio">{Object.keys(ASPECT_RATIOS).map(r=><option key={r} value={r}>{r} {r==='9:16'?'Portrait':r==='16:9'?'Landscape':r==='1:1'?'Square':r==='4:5'?'Portrait':'Portrait'}</option>)}</select></label><button className="small-icon" title="Full preview" aria-label="Open full preview" onClick={()=>{const el=document.querySelector(".viewport") as HTMLElement|null;if(!el)return;const request=el.requestFullscreen||((el as any).webkitRequestFullscreen);if(request)request.call(el);else alert("Full-screen preview is not supported by this browser.");}}><Maximize2 size={15}/></button></div></div>
+        <Viewport aspectRatio={aspectRatio} layers={animatedLayers} selectedId={selectedId} onSelect={id=>{setSelectedId(id);setTab('properties');}} onMove={(id,x,y)=>updateLayer(id,{x,y})} onMoveEnd={commitCurrentKeyframe} onCameraZoom={zoom=>updateCamera({zoom})} onCameraReset={()=>{setCameraTransform({x:0,y:0,zoom:1,z:20,roll:0});setLiveEditTime(null);}} cameraTransform={animatedCamera} playing={playing} playhead={playhead} windStrength={windStrength} windDirection={windDirection} atmosphere={atmosphere} environment={environment}/>
 <div className="timeline-panel">
  <div className="timeline-top"><div className="timeline-controls">
   <button className="play-btn" onClick={()=>{if(playhead>=duration)setPlayhead(0);setPlaying(v=>!v);}} title={playing?"Pause":"Play"}>{playing?<Pause size={15}/>:<Play size={15} fill="currentColor"/>}</button>
