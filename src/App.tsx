@@ -447,14 +447,17 @@ export default function App() {
     setLayers(prev => prev.map(layer => layer.id === id ? {...layer,...patch} : layer));
   };
   const updateSelected = (patch: Partial<Layer>) => { if (selectedId) updateLayer(selectedId,patch); };
-  const setSelectedDepth = (z:number) => { if(!selectedId)return; recordHistory(); const next=layers.map(layer=>layer.id===selectedId?{...layer,z}:layer); setLayers(next); if(keyframes.length) writeKeyframe(makeFrame(playhead,next,cameraTransform)); };
+  const setSelectedDepth = (z:number) => { if(!selectedId)return; recordHistory(); const next=layers.map(layer=>layer.id===selectedId?{...layer,z}:layer); setLayers(next); const existing=keyframes.find(frame=>Math.abs(frame.time-playhead)<=0.015); if(existing){const frame=makeFrame(existing.time,next,cameraTransform);frame.id=existing.id;writeKeyframe(frame);} };
   const updateCamera = (patch:Partial<CameraTransform>) => {
     recordHistory();
     setLiveEditTime(playhead);
     setCameraTransform(prev=>({...prev,...patch}));
   };
+  // Editing a property must never create a keyframe implicitly.
+  // Only update a keyframe when the playhead is already on an existing marker.
   const commitCurrentKeyframe = () => {
-    if (keyframes.length || liveEditTime !== null) writeKeyframe(makeFrame(playhead,layers,cameraTransform));
+    const existing=keyframes.find(frame=>Math.abs(frame.time-playhead)<=0.015);
+    if(existing){const frame=makeFrame(existing.time,layers,cameraTransform);frame.id=existing.id;writeKeyframe(frame);}
     setLiveEditTime(null);
   };
   const applyMask = (id: string, blob: Blob) => {
