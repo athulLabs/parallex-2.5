@@ -108,7 +108,7 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
     const mistFx=makeAtmosphere(115,0xc9d3df,.075,.22,boardW*1.35,BOARD_H*.45,.65);
     const dustFx=makeAtmosphere(100,0xf2d9a0,.025,.72,boardW*1.25,BOARD_H*1.2,1.2);
 
-    // Fixed 9:16 composition frame. Artwork is positioned inside this board.
+    // Fixed-size composition frame in the selected aspect ratio. Artwork is positioned inside this board.
     const board = new THREE.Group();
     const frame = new THREE.LineSegments(
       new THREE.EdgesGeometry(new THREE.PlaneGeometry(boardW, BOARD_H)),
@@ -256,7 +256,7 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
           const video=document.createElement('video');video.src=layer.url;video.muted=true;video.loop=true;video.playsInline=true;video.preload='auto';video.crossOrigin='anonymous';
           mesh.userData.videoElement=video;
           const texture=new THREE.VideoTexture(video);texture.colorSpace=THREE.SRGBColorSpace;material.map=texture;material.needsUpdate=true;
-          const fitVideo=()=>{if(!meshes.current.has(layer.id)||mesh!.userData.sourceUrl!==layer.url)return;const aspect=(video.videoWidth||16)/(video.videoHeight||9);const boardAspect=boardW/BOARD_H;const fitW=aspect>boardAspect?BOARD_W:BOARD_H*aspect;const fitH=aspect>boardAspect?BOARD_W/aspect:BOARD_H;mesh!.geometry.dispose();mesh!.geometry=new THREE.PlaneGeometry(fitW,fitH);};
+          const fitVideo=()=>{if(!meshes.current.has(layer.id)||mesh!.userData.sourceUrl!==layer.url)return;const aspect=(video.videoWidth||16)/(video.videoHeight||9);const boardAspect=boardW/BOARD_H;const fitW=aspect>boardAspect?boardW:BOARD_H*aspect;const fitH=aspect>boardAspect?boardW/aspect:BOARD_H;mesh!.geometry.dispose();mesh!.geometry=new THREE.PlaneGeometry(fitW,fitH);};
           video.addEventListener('loadedmetadata',fitVideo,{once:true});
           if(video.readyState>=1)fitVideo();
           if(playingRef.current){const start=()=>{video.currentTime=Math.min(playheadRef.current,Number.isFinite(video.duration)?video.duration:playheadRef.current);void video.play().catch(()=>{});};if(video.readyState>=2)start();else video.addEventListener('canplay',start,{once:true});}
@@ -271,12 +271,17 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
           const image = texture.image as HTMLImageElement;
           const imageAspect = image.width / Math.max(1, image.height);
           const boardAspect = boardW / BOARD_H;
-          const fitW = imageAspect > boardAspect ? BOARD_W : BOARD_H * imageAspect;
-          const fitH = imageAspect > boardAspect ? BOARD_W / imageAspect : BOARD_H;
+          const fitW = imageAspect > boardAspect ? boardW : BOARD_H * imageAspect;
+          const fitH = imageAspect > boardAspect ? boardW / imageAspect : BOARD_H;
           mesh!.geometry.dispose();
           mesh!.geometry = new THREE.PlaneGeometry(fitW, fitH);
         });
       }
+      const currentMaterial=mesh.material as THREE.MeshBasicMaterial;
+      const media=currentMaterial.map?.image as HTMLImageElement|undefined;
+      const video=mesh.userData.videoElement as HTMLVideoElement|undefined;
+      const mediaWidth=video?.videoWidth||media?.width||0, mediaHeight=video?.videoHeight||media?.height||0;
+      if(mediaWidth>0&&mediaHeight>0){const mediaAspect=mediaWidth/mediaHeight,boardAspect=boardW/BOARD_H;const fitW=mediaAspect>boardAspect?boardW:BOARD_H*mediaAspect;const fitH=mediaAspect>boardAspect?boardW/mediaAspect:BOARD_H;const geometry=mesh.geometry as THREE.PlaneGeometry;const params=(geometry.parameters||{}) as {width?:number;height?:number};if(Math.abs((params.width||0)-fitW)>.001||Math.abs((params.height||0)-fitH)>.001){mesh.geometry.dispose();mesh.geometry=new THREE.PlaneGeometry(fitW,fitH);}}
       mesh.position.set(layer.x, layer.y, layer.z);
       mesh.scale.setScalar(layer.scale);
       mesh.rotation.z = THREE.MathUtils.degToRad(layer.rotation);
@@ -618,7 +623,8 @@ export default function App() {
           <div className="camera-control-card"><div><Camera size={14}/> Camera framing</div>
             <label>Horizontal <b>{cameraTransform.x.toFixed(2)}</b><input type="range" min="-8" max="8" step=".01" value={cameraTransform.x} onChange={e=>updateCamera({x:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
             <label>Vertical <b>{cameraTransform.y.toFixed(2)}</b><input type="range" min="-12" max="12" step=".01" value={cameraTransform.y} onChange={e=>updateCamera({y:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
-            <label>Camera zoom <b>{cameraTransform.zoom.toFixed(2)}×</b><input type="range" min=".35" max="5" step=".01" value={cameraTransform.zoom} onChange={e=>updateCamera({zoom:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>\n            <label>Camera distance <b>{(cameraTransform.z??20).toFixed(1)}</b><input type="range" min="6" max="50" step=".1" value={cameraTransform.z??18} onChange={e=>updateCamera({z:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label><label>Camera roll <b>{(cameraTransform.roll??0).toFixed(0)}°</b><input type="range" min="-45" max="45" step="1" value={cameraTransform.roll??0} onChange={e=>updateCamera({roll:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label></div>
+            <label>Camera zoom <b>{cameraTransform.zoom.toFixed(2)}×</b><input type="range" min=".35" max="5" step=".01" value={cameraTransform.zoom} onChange={e=>updateCamera({zoom:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
+            <label>Camera distance <b>{(cameraTransform.z??20).toFixed(1)}</b><input type="range" min="6" max="50" step=".1" value={cameraTransform.z??18} onChange={e=>updateCamera({z:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label><label>Camera roll <b>{(cameraTransform.roll??0).toFixed(0)}°</b><input type="range" min="-45" max="45" step="1" value={cameraTransform.roll??0} onChange={e=>updateCamera({roll:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label><button type="button" className="wide-secondary" onClick={()=>{setCameraTransform({x:0,y:0,zoom:1,z:18,roll:0});setLiveEditTime(null);}}>Reset camera framing</button></div>
           <button className="wide-secondary mask-open-btn" onClick={()=>setMaskLayerId(selected.id)}><Scan size={14}/> Open manual mask editor</button><button className="wide-secondary" onClick={()=>duplicateLayer(selected)}><Copy size={14}/> Duplicate layer</button>
         </> : <div className="layer-empty"><SlidersHorizontal size={22}/><b>No layer selected</b><span>Select a layer to edit its transforms.</span></div>}</div>}
         <div className="inspector-footer"><span className="live-dot"/> Drag layers in the canvas to reposition</div>
