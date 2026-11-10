@@ -282,7 +282,7 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
     });
   }, [layers]);
 
-  useEffect(()=>{meshes.current.forEach(mesh=>{const video=mesh.userData.videoElement as HTMLVideoElement|undefined;if(!video)return;if(playing){video.currentTime=Math.min(playheadRef.current,Number.isFinite(video.duration)?video.duration:playheadRef.current);void video.play().catch(()=>{});}else video.pause();});},[playing]);
+  useEffect(()=>{meshes.current.forEach(mesh=>{const video=mesh.userData.videoElement as HTMLVideoElement|undefined;if(!video)return;if(playing){void video.play().catch(()=>{});}else{video.pause();if(Number.isFinite(video.duration)&&video.duration>0){const target=Math.min(playhead,video.duration);if(Math.abs(video.currentTime-target)>.08){try{video.currentTime=target;}catch{}}}}});},[playing,playhead]);
 
   const pointerToWorld = (e: React.PointerEvent) => {
     const rect = host.current!.getBoundingClientRect();
