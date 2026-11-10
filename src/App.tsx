@@ -575,7 +575,7 @@ export default function App() {
           <div className="panel-heading"><div><span className="eyebrow">SCENE CONTENT</span><strong>Layers <em>{layers.length}</em></strong></div><button className="add-btn" onClick={()=>fileRef.current?.click()}><Plus size={15}/> Add</button></div>
           {layers.length===0 ? <div className="layer-empty"><Layers3 size={22}/><b>No layers yet</b><span>Import transparent PNGs, artwork or video clips.</span><button onClick={()=>fileRef.current?.click()}><Upload size={14}/> Import artwork</button></div> :
             <div className="layer-list">{[...layers].reverse().map(layer=><div className={'layer-row '+(selectedId===layer.id?'selected':'')} key={layer.id} onClick={()=>{setSelectedId(layer.id);setTab('properties');}}>
-              <div className="layer-thumb"><img src={layer.url}/></div><div className="layer-info"><b>{layer.name}</b><small>Z {layer.z.toFixed(2)} · {layer.locked?'Locked':'Editable'}</small></div>
+              <div className="layer-thumb">{layer.isVideo?<Film size={18}/>:<img src={layer.url} alt=""/>}</div><div className="layer-info"><b>{layer.name}</b><small>{layer.isVideo?'VIDEO · ':'IMAGE · '}Z {layer.z.toFixed(2)} · {layer.locked?'Locked':'Editable'}</small></div>
               <button title="Toggle visibility" onClick={e=>{e.stopPropagation();updateLayer(layer.id,{visible:!layer.visible});}}>{layer.visible?<Eye size={15}/>:<EyeOff size={15}/>}</button>
               <button title="Lock layer" onClick={e=>{e.stopPropagation();updateLayer(layer.id,{locked:!layer.locked});}}>{layer.locked?<Lock size={14}/>:<Unlock size={14}/>}</button>
             </div>)}</div>}
