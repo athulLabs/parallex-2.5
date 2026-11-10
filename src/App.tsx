@@ -11,7 +11,7 @@ type Transform = { x:number; y:number; z:number; scale:number; rotation:number; 
 type CameraTransform = { x:number; y:number; zoom:number; z:number; roll:number };
 type Keyframe = { id:string; time:number; layers:Record<string,Transform>; camera:CameraTransform };
 type EnvironmentPreset = 'divine'|'sunset'|'night'|'storm'|'temple'|'cosmic';
-type EnvironmentSettings = { preset: EnvironmentPreset; intensity:number; horizon:number; stars:boolean; };
+type EnvironmentSettings = { preset: EnvironmentPreset; intensity:number; horizon:number; stars:boolean; fabric:boolean; fabricScale:number; fabricOpacity:number; fabricGlow:number; };
 type Layer = {
   id: string; name: string; url: string; fileName: string;
   x: number; y: number; z: number; scale: number; rotation: number;
@@ -126,22 +126,38 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
     const mistFx=makeAtmosphere(115,0xc9d3df,.075,.22,boardW*1.35,BOARD_H*.45,.65);
     const dustFx=makeAtmosphere(100,0xf2d9a0,.025,.72,boardW*1.25,BOARD_H*1.2,1.2);
 
-    // Fixed-size composition frame in the selected aspect ratio. Artwork is positioned inside this board.
+    // Camera-mounted composition overlay: it stays locked to the camera during pan, zoom, roll and resize.
     const board = new THREE.Group();
     const frame = new THREE.LineSegments(
       new THREE.EdgesGeometry(new THREE.PlaneGeometry(boardW, BOARD_H)),
-      new THREE.LineBasicMaterial({ color: 0x77718f, transparent: true, opacity: 0.75 })
+      new THREE.LineBasicMaterial({ color: 0x9b8bd0, transparent: true, opacity: 0.9, depthTest: false })
     );
-    frame.position.z = -0.05;
+    frame.position.z = -0.05; frame.renderOrder = 1000;
     board.add(frame);
     const guides = new THREE.Group();
-    const guideMaterial = new THREE.LineDashedMaterial({ color: 0x383448, dashSize: 0.08, gapSize: 0.08, transparent: true, opacity: 0.65 });
+    const guideMaterial = new THREE.LineDashedMaterial({ color: 0x62577f, dashSize: 0.08, gapSize: 0.08, transparent: true, opacity: 0.55, depthTest: false });
     const guideGeo = new THREE.BufferGeometry().setFromPoints([
       new THREE.Vector3(-boardW/2, 0, -0.04), new THREE.Vector3(boardW/2, 0, -0.04),
       new THREE.Vector3(0, -BOARD_H/2, -0.04), new THREE.Vector3(0, BOARD_H/2, -0.04)
     ]);
     const guideLines = new THREE.LineSegments(guideGeo, guideMaterial);
-    guideLines.computeLineDistances(); guides.add(guideLines); board.add(guides); scene.add(board);
+    guideLines.computeLineDistances(); guideLines.renderOrder = 1000; guides.add(guideLines); board.add(guides);
+    board.position.set(0,0,-2); camera.add(board);
+    const resizeCompositionFrame = () => { const ratio=boardW/BOARD_H; const fit=Math.min(.9,.9*camera.aspect/ratio); board.scale.setScalar(fit); };
+    resizeCompositionFrame();
+
+    // Procedural triangulated fabric field behind the artwork, with real depth undulation (not a flat checkerboard).
+    const fabricGeometry = new THREE.PlaneGeometry(boardW*3.6, BOARD_H*2.5, 72, 50);
+    const fabricPositions = fabricGeometry.attributes.position as THREE.BufferAttribute;
+    for(let i=0;i<fabricPositions.count;i++){
+      const x=fabricPositions.getX(i), y=fabricPositions.getY(i);
+      const wave=Math.sin(x*.72+y*.24)*.19+Math.cos(y*.95-x*.18)*.13+Math.sin(x*.31)*Math.cos(y*.62)*.11;
+      fabricPositions.setZ(i,wave);
+    }
+    fabricGeometry.computeVertexNormals();
+    const fabricMaterial = new THREE.MeshBasicMaterial({color:0x8069c5,wireframe:true,transparent:true,opacity:.28,depthWrite:false,side:THREE.DoubleSide});
+    const fabric = new THREE.Mesh(fabricGeometry,fabricMaterial);
+    fabric.name='environment-geometric-fabric'; fabric.position.set(0,-1.15,-3.35); fabric.renderOrder=-2; scene.add(fabric);
     sceneRef.current = scene; rendererRef.current = renderer; cameraRef.current = camera;
 
     const resize = () => {
@@ -149,6 +165,7 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
       const w = Math.max(1, host.current.clientWidth), h = Math.max(1, host.current.clientHeight);
       camera.aspect = w / h;
       applyCameraFraming(camera,cameraSettingsRef.current);
+      resizeCompositionFrame();
       renderer.setSize(w, h);
     };
     const observer = new ResizeObserver(resize); observer.observe(host.current); resize();
@@ -195,6 +212,7 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
     return () => {
       cancelAnimationFrame(frameId); observer.disconnect();
       [cloudFx,mistFx,dustFx].forEach(fx=>{scene.remove(fx.points);fx.geometry.dispose();fx.material.dispose();});
+      scene.remove(fabric); fabricGeometry.dispose(); fabricMaterial.dispose(); camera.remove(board);
       meshes.current.forEach(mesh => {
         scene.remove(mesh); mesh.geometry.dispose();
         const material = mesh.material as THREE.MeshBasicMaterial;
@@ -238,6 +256,8 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
     const starPoints=scene.getObjectByName('environment-stars') as THREE.Points|undefined;
     if(starPoints) starPoints.visible=environment.stars && ['night','storm','cosmic','divine'].includes(environment.preset);
     if(starPoints) (starPoints.material as THREE.PointsMaterial).opacity=environment.preset==='storm'?.22:.75;
+    const fabric=scene.getObjectByName('environment-geometric-fabric') as THREE.Mesh|undefined;
+    if(fabric){fabric.visible=environment.fabric;fabric.scale.setScalar(environment.fabricScale);const fm=fabric.material as THREE.MeshBasicMaterial;fm.opacity=environment.fabricOpacity;fm.color.setRGB(.25+environment.fabricGlow*.28,.19+environment.fabricGlow*.2,.42+environment.fabricGlow*.3);}
   }, [environment]);
   useEffect(() => { const camera=cameraRef.current; if(!camera) return; applyCameraFraming(camera,cameraTransform); }, [cameraTransform,aspectRatio]);
 
@@ -371,7 +391,7 @@ export default function App() {
   const [windStrength, setWindStrength] = useState(0);
   const [windDirection, setWindDirection] = useState(0);
   const [atmosphere, setAtmosphere] = useState({clouds:false,mist:false,dust:false,intensity:1});
-  const [environment,setEnvironment] = useState<EnvironmentSettings>({preset:'divine',intensity:1,horizon:0.35,stars:true});
+  const [environment,setEnvironment] = useState<EnvironmentSettings>({preset:'divine',intensity:1,horizon:0.35,stars:true,fabric:true,fabricScale:1,fabricOpacity:0.28,fabricGlow:0.55});
   const [keyframes, setKeyframes] = useState<Keyframe[]>([]);
   const [cameraTransform, setCameraTransform] = useState<CameraTransform>({x:0,y:0,zoom:1,z:18,roll:0});
   const [aspectRatio,setAspectRatio]=useState('9:16');
@@ -591,7 +611,7 @@ export default function App() {
  <div className="timeline-top"><div className="timeline-controls">
   <button className="play-btn" onClick={()=>{if(playhead>=duration)setPlayhead(0);setPlaying(v=>!v);}} title={playing?"Pause":"Play"}>{playing?<Pause size={15}/>:<Play size={15} fill="currentColor"/>}</button>
   <button className="timeline-icon" onClick={()=>{setPlaying(false);setPlayhead(0);}} title="Go to start"><SkipBack size={15}/></button><span className="time-readout">{playhead.toFixed(2)}s / {duration.toFixed(1)}s</span>
- </div><div className="timeline-actions"><label className="atmosphere-toggle"><input type="checkbox" checked={atmosphere.clouds} onChange={e=>setAtmosphere(v=>({...v,clouds:e.target.checked}))}/> Clouds</label><label className="atmosphere-toggle"><input type="checkbox" checked={atmosphere.mist} onChange={e=>setAtmosphere(v=>({...v,mist:e.target.checked}))}/> Mist</label><label className="atmosphere-toggle"><input type="checkbox" checked={atmosphere.dust} onChange={e=>setAtmosphere(v=>({...v,dust:e.target.checked}))}/> Dust</label><label className="atmosphere-intensity">Atmosphere <input type="range" min="0" max="2" step=".05" value={atmosphere.intensity} onChange={e=>setAtmosphere(v=>({...v,intensity:+e.target.value}))}/></label><button className="keyframe-btn" onClick={addKeyframe} title="Add a keyframe for the current camera and layer positions"><KeyRound size={14}/> Add keyframe</button><label>Duration <select value={duration} onChange={e=>{recordHistory();setDuration(+e.target.value);setPlayhead(p=>Math.min(p,+e.target.value));setPlaying(false);}}>{[5,10,15,20,30,45,60,90,120].map(v=><option key={v} value={v}>{v}s</option>)}</select></label></div></div>
+ </div><div className="timeline-actions"><label className="atmosphere-toggle"><input type="checkbox" checked={atmosphere.clouds} onChange={e=>setAtmosphere(v=>({...v,clouds:e.target.checked}))}/> Clouds</label><label className="atmosphere-toggle"><input type="checkbox" checked={atmosphere.mist} onChange={e=>setAtmosphere(v=>({...v,mist:e.target.checked}))}/> Mist</label><label className="atmosphere-toggle"><input type="checkbox" checked={atmosphere.dust} onChange={e=>setAtmosphere(v=>({...v,dust:e.target.checked}))}/> Dust</label><label className="atmosphere-intensity">Atmosphere <input type="range" min="0" max="2" step=".05" value={atmosphere.intensity} onChange={e=>setAtmosphere(v=>({...v,intensity:+e.target.value}))}/></label><button className="keyframe-btn" onClick={addKeyframe} title="Add a keyframe for the current camera and layer positions"><KeyRound size={14}/> Add keyframe</button><button className="keyframe-delete-btn" disabled={!keyframes.length} onClick={deleteSelectedKeyframe} title={selectedKeyframe?"Delete selected keyframe":"Delete keyframe nearest the playhead"}><Trash2 size={13}/> Delete</button><label>Duration <select value={duration} onChange={e=>{recordHistory();setDuration(+e.target.value);setPlayhead(p=>Math.min(p,+e.target.value));setPlaying(false);}}>{[5,10,15,20,30,45,60,90,120].map(v=><option key={v} value={v}>{v}s</option>)}</select></label></div></div>
  <div className="timeline-ruler"><span>00:00</span><span>{(duration/4).toFixed(1)}s</span><span>{(duration/2).toFixed(1)}s</span><span>{(duration*.75).toFixed(1)}s</span><span>{duration.toFixed(1)}s</span></div>
  <div className="timeline-scrub"><input aria-label="Timeline playhead" type="range" min="0" max={duration} step=".01" value={playhead} onChange={e=>{setPlaying(false);setPlayhead(+e.target.value);}}/><div className="keyframe-markers">{keyframes.map(frame=><button key={frame.id} className={selectedKeyframeId===frame.id?"selected":""} aria-label={"Select keyframe at "+frame.time.toFixed(2)+" seconds"} title={"Keyframe at "+frame.time.toFixed(2)+"s · tap to select"} style={{left:(frame.time/duration*100)+"%"}} onClick={()=>{setPlaying(false);setSelectedKeyframeId(frame.id);setPlayhead(frame.time);}}/>)}</div></div>
  <div className="timeline-bottom"><span><CircleDot size={11}/> {keyframes.length} keyframes</span><button className="keyframe-delete-bottom" disabled={!keyframes.length} onClick={deleteSelectedKeyframe} title={selectedKeyframe?"Delete selected keyframe":"Delete the keyframe nearest the playhead"}><Trash2 size={12}/> Delete keyframe</button><span>30 FPS · Smooth interpolation</span></div>
@@ -605,7 +625,11 @@ export default function App() {
           <label>Sky intensity <b>{environment.intensity.toFixed(1)}×</b><input type="range" min="0.2" max="2" step=".05" value={environment.intensity} onChange={e=>setEnvironment(v=>({...v,intensity:+e.target.value}))}/></label>
           <label>Horizon glow <b>{Math.round(environment.horizon*100)}%</b><input type="range" min="0" max="1" step=".01" value={environment.horizon} onChange={e=>setEnvironment(v=>({...v,horizon:+e.target.value}))}/></label>
           <label className="environment-check"><input type="checkbox" checked={environment.stars} onChange={e=>setEnvironment(v=>({...v,stars:e.target.checked}))}/> Show stars</label>
-          <p className="environment-note">Generated locally in Three.js. No HDRI upload, external image, API or paid credits required.</p>
+          <div className="world-divider"><span>GEOMETRIC FABRIC</span><label className="environment-check"><input type="checkbox" checked={environment.fabric} onChange={e=>setEnvironment(v=>({...v,fabric:e.target.checked}))}/> Enable 3D fabric field</label></div>
+          <label>Fabric scale <b>{environment.fabricScale.toFixed(2)}×</b><input type="range" min="0.45" max="2.2" step=".05" value={environment.fabricScale} onChange={e=>setEnvironment(v=>({...v,fabricScale:+e.target.value}))}/></label>
+          <label>Fabric opacity <b>{Math.round(environment.fabricOpacity*100)}%</b><input type="range" min="0" max="0.8" step=".01" value={environment.fabricOpacity} onChange={e=>setEnvironment(v=>({...v,fabricOpacity:+e.target.value}))}/></label>
+          <label>Fabric glow <b>{Math.round(environment.fabricGlow*100)}%</b><input type="range" min="0" max="1" step=".01" value={environment.fabricGlow} onChange={e=>setEnvironment(v=>({...v,fabricGlow:+e.target.value}))}/></label>
+          <p className="environment-note">The fabric is a locally generated, triangulated 3D wave mesh with adjustable scale, visibility and glow. No external assets or paid credits.</p>
         </div> : tab==='layers' ? <div className="layer-panel">
           <div className="panel-heading"><div><span className="eyebrow">SCENE CONTENT</span><strong>Layers <em>{layers.length}</em></strong></div><button className="add-btn" onClick={()=>fileRef.current?.click()}><Plus size={15}/> Add</button></div>
           {layers.length===0 ? <div className="layer-empty"><Layers3 size={22}/><b>No layers yet</b><span>Import transparent PNGs, artwork or video clips.</span><button onClick={()=>fileRef.current?.click()}><Upload size={14}/> Import artwork</button></div> :
