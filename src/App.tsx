@@ -19,10 +19,10 @@ type Layer = {
   motionX?: number; motionY?: number; motionRotation?: number; motionSpeed?: number;
 };
 const uid = () => Math.random().toString(36).slice(2, 10);
-const BOARD_W = 4.05;
 const BOARD_H = 7.2;
+const ASPECT_RATIOS:Record<string,number> = {'9:16':9/16,'16:9':16/9,'1:1':1,'4:5':4/5,'3:4':3/4};
 
-type EditorSnapshot = { layers:Layer[]; selectedId:string|null; projectName:string; duration:number; keyframes:Keyframe[]; cameraTransform:CameraTransform };
+type EditorSnapshot = { layers:Layer[]; selectedId:string|null; projectName:string; duration:number; keyframes:Keyframe[]; cameraTransform:CameraTransform; aspectRatio:string };
 const AUTOSAVE_DB='parallax-editor-recovery';
 const AUTOSAVE_STORE='projects';
 const openAutosaveDb=():Promise<IDBDatabase>=>new Promise((resolve,reject)=>{
@@ -43,11 +43,13 @@ const readRecovery=async():Promise<any|null>=>{
 };
 const clearRecovery=async()=>{const db=await openAutosaveDb();await new Promise<void>((resolve,reject)=>{const tx=db.transaction(AUTOSAVE_STORE,'readwrite');tx.objectStore(AUTOSAVE_STORE).delete('latest');tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);});db.close();};
 
-function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoom, onCameraReset, cameraTransform, playing, playhead, windStrength, windDirection, atmosphere, environment }: {
+function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoom, onCameraReset, cameraTransform, aspectRatio, playing, playhead, windStrength, windDirection, atmosphere, environment }: {
   layers: Layer[]; selectedId: string | null; onSelect: (id: string) => void;
-  onMove: (id: string, x: number, y: number) => void; onMoveEnd: () => void; onCameraZoom:(zoom:number)=>void; onCameraReset:()=>void; cameraTransform: CameraTransform; playing: boolean; playhead:number; windStrength: number; windDirection: number; atmosphere: {clouds:boolean;mist:boolean;dust:boolean;intensity:number}; environment: EnvironmentSettings;
+  onMove: (id: string, x: number, y: number) => void; onMoveEnd: () => void; onCameraZoom:(zoom:number)=>void; onCameraReset:()=>void; cameraTransform: CameraTransform; aspectRatio:string; playing: boolean; playhead:number; windStrength: number; windDirection: number; atmosphere: {clouds:boolean;mist:boolean;dust:boolean;intensity:number}; environment: EnvironmentSettings;
 }) {
   const host = useRef<HTMLDivElement>(null);
+  const boardW=BOARD_H*(ASPECT_RATIOS[aspectRatio]??(9/16));
+  const fitDistance=useRef(24);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
@@ -102,14 +104,14 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
       const points=new THREE.Points(geometry,material); points.visible=false; scene.add(points);
       return {points,geometry,material,speeds,phases,count,spreadX,spreadY};
     };
-    const cloudFx=makeAtmosphere(26,0x9ca8bc,.22,.12,BOARD_W*1.5,BOARD_H*1.25,-.4);
-    const mistFx=makeAtmosphere(115,0xc9d3df,.075,.22,BOARD_W*1.35,BOARD_H*.45,.65);
-    const dustFx=makeAtmosphere(100,0xf2d9a0,.025,.72,BOARD_W*1.25,BOARD_H*1.2,1.2);
+    const cloudFx=makeAtmosphere(26,0x9ca8bc,.22,.12,boardW*1.5,BOARD_H*1.25,-.4);
+    const mistFx=makeAtmosphere(115,0xc9d3df,.075,.22,boardW*1.35,BOARD_H*.45,.65);
+    const dustFx=makeAtmosphere(100,0xf2d9a0,.025,.72,boardW*1.25,BOARD_H*1.2,1.2);
 
     // Fixed 9:16 composition frame. Artwork is positioned inside this board.
     const board = new THREE.Group();
     const frame = new THREE.LineSegments(
-      new THREE.EdgesGeometry(new THREE.PlaneGeometry(BOARD_W, BOARD_H)),
+      new THREE.EdgesGeometry(new THREE.PlaneGeometry(boardW, BOARD_H)),
       new THREE.LineBasicMaterial({ color: 0x77718f, transparent: true, opacity: 0.75 })
     );
     frame.position.z = -0.05;
@@ -117,7 +119,7 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
     const guides = new THREE.Group();
     const guideMaterial = new THREE.LineDashedMaterial({ color: 0x383448, dashSize: 0.08, gapSize: 0.08, transparent: true, opacity: 0.65 });
     const guideGeo = new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(-BOARD_W/2, 0, -0.04), new THREE.Vector3(BOARD_W/2, 0, -0.04),
+      new THREE.Vector3(-boardW/2, 0, -0.04), new THREE.Vector3(boardW/2, 0, -0.04),
       new THREE.Vector3(0, -BOARD_H/2, -0.04), new THREE.Vector3(0, BOARD_H/2, -0.04)
     ]);
     const guideLines = new THREE.LineSegments(guideGeo, guideMaterial);
@@ -128,6 +130,8 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
       if (!host.current) return;
       const w = Math.max(1, host.current.clientWidth), h = Math.max(1, host.current.clientHeight);
       camera.aspect = w / h;
+      fitDistance.current=Math.max(18,Math.max(BOARD_H,boardW/camera.aspect)*1.08/(2*Math.tan(THREE.MathUtils.degToRad(camera.fov/2))));
+      camera.position.z=Math.max(camera.position.z,fitDistance.current);
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
     };
@@ -185,7 +189,7 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
       guideGeo.dispose(); guideMaterial.dispose(); skyMesh.geometry.dispose(); skyMaterial.dispose(); skyTexture.dispose(); starGeometry.dispose(); starMaterial.dispose(); renderer.dispose();
       if (host.current?.contains(renderer.domElement)) host.current.removeChild(renderer.domElement);
     };
-  }, []);
+  }, [aspectRatio]);
 
   useEffect(() => {
     const canvas=document.querySelector('.viewport canvas') as HTMLCanvasElement|null;
@@ -219,7 +223,7 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
     if(starPoints) starPoints.visible=environment.stars && ['night','storm','cosmic','divine'].includes(environment.preset);
     if(starPoints) (starPoints.material as THREE.PointsMaterial).opacity=environment.preset==='storm'?.22:.75;
   }, [environment]);
-  useEffect(() => { const camera=cameraRef.current; if(!camera) return; camera.position.set(cameraTransform.x,cameraTransform.y,cameraTransform.z ?? 20); camera.lookAt(0,0,0); camera.rotation.z=(cameraTransform.roll??0)*Math.PI/180; camera.zoom=cameraTransform.zoom; camera.updateProjectionMatrix(); }, [cameraTransform]);
+  useEffect(() => { const camera=cameraRef.current; if(!camera) return; camera.position.set(cameraTransform.x,cameraTransform.y,Math.max(cameraTransform.z??20,fitDistance.current)); camera.lookAt(0,0,0); camera.rotation.z=(cameraTransform.roll??0)*Math.PI/180; camera.zoom=cameraTransform.zoom; camera.updateProjectionMatrix(); }, [cameraTransform,aspectRatio]);
 
   useEffect(() => {
     const scene = sceneRef.current; if (!scene) return;
@@ -237,7 +241,7 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
       let mesh = meshes.current.get(layer.id);
       if (!mesh) {
         const material = new THREE.MeshBasicMaterial({ transparent: true, side: THREE.DoubleSide, depthWrite: false });
-        mesh = new THREE.Mesh(new THREE.PlaneGeometry(BOARD_W, BOARD_H), material);
+        mesh = new THREE.Mesh(new THREE.PlaneGeometry(boardW, BOARD_H), material);
         mesh.userData.layerId = layer.id;
         scene.add(mesh);
         meshes.current.set(layer.id, mesh);
@@ -252,7 +256,7 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
           const video=document.createElement('video');video.src=layer.url;video.muted=true;video.loop=true;video.playsInline=true;video.preload='auto';video.crossOrigin='anonymous';
           mesh.userData.videoElement=video;
           const texture=new THREE.VideoTexture(video);texture.colorSpace=THREE.SRGBColorSpace;material.map=texture;material.needsUpdate=true;
-          const fitVideo=()=>{if(!meshes.current.has(layer.id)||mesh!.userData.sourceUrl!==layer.url)return;const aspect=(video.videoWidth||16)/(video.videoHeight||9);const boardAspect=BOARD_W/BOARD_H;const fitW=aspect>boardAspect?BOARD_W:BOARD_H*aspect;const fitH=aspect>boardAspect?BOARD_W/aspect:BOARD_H;mesh!.geometry.dispose();mesh!.geometry=new THREE.PlaneGeometry(fitW,fitH);};
+          const fitVideo=()=>{if(!meshes.current.has(layer.id)||mesh!.userData.sourceUrl!==layer.url)return;const aspect=(video.videoWidth||16)/(video.videoHeight||9);const boardAspect=boardW/BOARD_H;const fitW=aspect>boardAspect?BOARD_W:BOARD_H*aspect;const fitH=aspect>boardAspect?BOARD_W/aspect:BOARD_H;mesh!.geometry.dispose();mesh!.geometry=new THREE.PlaneGeometry(fitW,fitH);};
           video.addEventListener('loadedmetadata',fitVideo,{once:true});
           if(video.readyState>=1)fitVideo();
           if(playingRef.current){const start=()=>{video.currentTime=Math.min(playheadRef.current,Number.isFinite(video.duration)?video.duration:playheadRef.current);void video.play().catch(()=>{});};if(video.readyState>=2)start();else video.addEventListener('canplay',start,{once:true});}
@@ -266,7 +270,7 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
           material.needsUpdate = true;
           const image = texture.image as HTMLImageElement;
           const imageAspect = image.width / Math.max(1, image.height);
-          const boardAspect = BOARD_W / BOARD_H;
+          const boardAspect = boardW / BOARD_H;
           const fitW = imageAspect > boardAspect ? BOARD_W : BOARD_H * imageAspect;
           const fitH = imageAspect > boardAspect ? BOARD_W / imageAspect : BOARD_H;
           mesh!.geometry.dispose();
@@ -280,7 +284,7 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
       mesh.renderOrder = index;
       (mesh.material as THREE.MeshBasicMaterial).opacity = layer.opacity / 100;
     });
-  }, [layers]);
+  }, [layers,aspectRatio]);
 
   useEffect(()=>{meshes.current.forEach(mesh=>{const video=mesh.userData.videoElement as HTMLVideoElement|undefined;if(!video)return;if(playing){void video.play().catch(()=>{});}else{video.pause();if(Number.isFinite(video.duration)&&video.duration>0){const target=Math.min(playhead,video.duration);if(Math.abs(video.currentTime-target)>.08){try{video.currentTime=target;}catch{}}}}});},[playing,playhead]);
 
@@ -289,8 +293,10 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
     const camera = cameraRef.current!;
     const nx = ((e.clientX - rect.left) / rect.width) * 2 - 1;
     const ny = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-    const point = new THREE.Vector3(nx, ny, 0).unproject(camera);
-    return { x: point.x, y: point.y };
+    const raycaster=new THREE.Raycaster();
+    raycaster.setFromCamera(new THREE.Vector2(nx,ny),camera);
+    const point=raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0,0,1),0),new THREE.Vector3());
+    return point ? {x:point.x,y:point.y} : {x:0,y:0};
   };
   const down = (e: React.PointerEvent) => {
     if (!cameraRef.current || !host.current) return;
@@ -322,7 +328,7 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
   };
   return <div className="viewport" ref={host} onPointerDown={down} onPointerMove={move} onPointerUp={() => { if(drag.current?.moved) onMoveEnd(); drag.current = null; }} onPointerCancel={() => { if(drag.current?.moved) onMoveEnd(); drag.current = null; }}>
     {layers.length === 0 && <div className="empty-scene"><div className="empty-icon"><ImageIcon size={26}/></div><strong>Your canvas is empty</strong><span>Import artwork to begin building your 2.5D scene.</span></div>}
-    <div className="viewport-badge"><span className="live-dot"/> 9:16 COMPOSITION</div>
+    <div className="viewport-badge"><span className="live-dot"/> {aspectRatio} COMPOSITION</div>
     <div className="viewport-actions">
       <button title="Zoom in" onClick={() => onCameraZoom(Math.min(2.5,cameraTransform.zoom+0.15))}><ZoomIn size={16}/></button>
       <button title="Zoom out" onClick={() => onCameraZoom(Math.max(.5,cameraTransform.zoom-0.15))}><ZoomOut size={16}/></button>
@@ -345,7 +351,8 @@ export default function App() {
   const [atmosphere, setAtmosphere] = useState({clouds:false,mist:false,dust:false,intensity:1});
   const [environment,setEnvironment] = useState<EnvironmentSettings>({preset:'divine',intensity:1,horizon:0.35,stars:true});
   const [keyframes, setKeyframes] = useState<Keyframe[]>([]);
-  const [cameraTransform, setCameraTransform] = useState<CameraTransform>({x:0,y:0,zoom:1.4,z:18,roll:0});
+  const [cameraTransform, setCameraTransform] = useState<CameraTransform>({x:0,y:0,zoom:1,z:18,roll:0});
+  const [aspectRatio,setAspectRatio]=useState('9:16');
   const [selectedKeyframeId,setSelectedKeyframeId]=useState<string|null>(null);
   const [liveEditTime, setLiveEditTime] = useState<number | null>(null);
   const [hydrated,setHydrated]=useState(false);
@@ -360,14 +367,14 @@ export default function App() {
   const projectFileRef = useRef<HTMLInputElement>(null);
   const selected = layers.find(layer => layer.id === selectedId) ?? null;
 
-  const snapshotEditor=():EditorSnapshot=>({layers:layers.map(layer=>({...layer})),selectedId,projectName,duration,keyframes:keyframes.map(frame=>({...frame,layers:{...frame.layers},camera:{...frame.camera}})),cameraTransform:{...cameraTransform}});
+  const snapshotEditor=():EditorSnapshot=>({layers:layers.map(layer=>({...layer})),selectedId,projectName,duration,keyframes:keyframes.map(frame=>({...frame,layers:{...frame.layers},camera:{...frame.camera}})),cameraTransform:{...cameraTransform},aspectRatio});
   const recordHistory=()=>{
     if(historyTimer.current!==null)return;
     const previous=snapshotEditor();
     historyTimer.current=window.setTimeout(()=>{undoStack.current=[...undoStack.current,previous].slice(-40);redoStack.current=[];historyTimer.current=null;setHistoryVersion(v=>v+1);},650);
   };
   const applySnapshot=(snapshot:EditorSnapshot)=>{
-    setLayers(snapshot.layers.map(layer=>({...layer})));setSelectedId(snapshot.selectedId);setProjectName(snapshot.projectName);setDuration(snapshot.duration);setKeyframes(snapshot.keyframes.map(frame=>({...frame,layers:{...frame.layers},camera:{...frame.camera}})));setCameraTransform({...snapshot.cameraTransform});setPlaying(false);setPlayhead(0);setLiveEditTime(null);
+    setLayers(snapshot.layers.map(layer=>({...layer})));setSelectedId(snapshot.selectedId);setProjectName(snapshot.projectName);setDuration(snapshot.duration);setKeyframes(snapshot.keyframes.map(frame=>({...frame,layers:{...frame.layers},camera:{...frame.camera}})));setCameraTransform({...snapshot.cameraTransform});setAspectRatio(snapshot.aspectRatio||'9:16');setPlaying(false);setPlayhead(0);setLiveEditTime(null);
   };
   const undo=()=>{
     if(historyTimer.current!==null){window.clearTimeout(historyTimer.current);historyTimer.current=null;}
@@ -384,7 +391,7 @@ export default function App() {
     readRecovery().then(payload=>{
       if(!active||!payload||!Array.isArray(payload.layers))return;
       const restored:Layer[]=payload.layers.map((item:any)=>{const {blob,...meta}=item;if(!(blob instanceof Blob))throw new Error('Recovery image data is unavailable');return {...meta,url:URL.createObjectURL(blob)};});
-      if(active){setLayers(restored);setSelectedId(payload.selectedId??restored[0]?.id??null);setProjectName(payload.projectName||'Untitled Scene');setDuration(Number.isFinite(payload.duration)?payload.duration:10);setKeyframes(Array.isArray(payload.keyframes)?payload.keyframes:[]);setCameraTransform(payload.cameraTransform||{x:0,y:0,zoom:1.4,z:18,roll:0});}
+      if(active){setLayers(restored);setSelectedId(payload.selectedId??restored[0]?.id??null);setProjectName(payload.projectName||'Untitled Scene');setDuration(Number.isFinite(payload.duration)?payload.duration:10);setKeyframes(Array.isArray(payload.keyframes)?payload.keyframes:[]);setCameraTransform(payload.cameraTransform||{x:0,y:0,zoom:1,z:18,roll:0});setAspectRatio(payload.aspectRatio&&ASPECT_RATIOS[payload.aspectRatio]?payload.aspectRatio:'9:16');}
     }).catch(()=>{}).finally(()=>{if(active)setHydrated(true);});
     return()=>{active=false;};
   },[]);
@@ -393,7 +400,7 @@ export default function App() {
     if(autosaveTimer.current!==null)window.clearTimeout(autosaveTimer.current);
     autosaveTimer.current=window.setTimeout(()=>{void persistRecovery(snapshotEditor()).catch(()=>{});},900);
     return()=>{if(autosaveTimer.current!==null)window.clearTimeout(autosaveTimer.current);};
-  },[hydrated,autosaveEnabled,layers,selectedId,projectName,duration,keyframes,cameraTransform]);
+  },[hydrated,autosaveEnabled,layers,selectedId,projectName,duration,keyframes,cameraTransform,aspectRatio]);
   const animatedLayers = layers.map(layer => {
     if (!keyframes.length || (liveEditTime !== null && Math.abs(playhead-liveEditTime)<0.02)) return layer;
     const frames=[...keyframes].sort((a,b)=>a.time-b.time);
@@ -494,7 +501,7 @@ export default function App() {
         const { url, ...metadata } = layer;
         return { ...metadata, dataUrl };
       }));
-      const payload = { format: 'PARALLAX_2_5', version: 2, projectName, duration, keyframes, cameraTransform, layers: imageLayers };
+      const payload = { format: 'PARALLAX_2_5', version: 3, projectName, duration, keyframes, cameraTransform, aspectRatio, layers: imageLayers };
       const blob = new Blob([JSON.stringify(payload)], {type:'application/json'});
       const objectUrl = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -528,6 +535,7 @@ export default function App() {
       setKeyframes(Array.isArray(payload.keyframes) ? payload.keyframes.map((frame:any)=>({...frame,layers:Object.fromEntries(Object.entries(frame.layers||{}).map(([oldId,value])=>[idMap.get(String(oldId))||String(oldId),value]))})) : []);
       setDuration(Number.isFinite(payload.duration) ? Math.max(1,Math.min(120,payload.duration)) : 10);
       setCameraTransform(payload.cameraTransform && Number.isFinite(payload.cameraTransform.zoom) ? {...payload.cameraTransform,z:Number.isFinite(payload.cameraTransform.z)?payload.cameraTransform.z:20} : {x:0,y:0,zoom:1,z:20});
+      setAspectRatio(payload.aspectRatio&&ASPECT_RATIOS[payload.aspectRatio]?payload.aspectRatio:'9:16');
       setPlayhead(0); setPlaying(false);
       setSelectedId(restored[0]?.id ?? null);
       setProjectName(typeof payload.projectName === 'string' ? payload.projectName : 'Imported Scene');
@@ -553,8 +561,8 @@ export default function App() {
         <div className="rail-bottom"><button className="rail-item" onClick={()=>setSettingsOpen(true)}><Settings2/><span>Settings</span></button></div>
       </aside>
       <section className="editor-main">
-        <div className="scene-toolbar"><div><span className="eyebrow">SCENE EDITOR</span><strong>Composition</strong></div><div className="toolbar-right"><span className="format-chip">9:16 PORTRAIT · 1080 × 1920</span><button className="small-icon" title="Full preview" aria-label="Open full preview" onClick={()=>{const el=document.querySelector(".viewport") as HTMLElement|null;if(!el)return;const request=el.requestFullscreen||((el as any).webkitRequestFullscreen);if(request)request.call(el);else alert("Full-screen preview is not supported by this browser.");}}><Maximize2 size={15}/></button></div></div>
-        <Viewport layers={animatedLayers} selectedId={selectedId} onSelect={id=>{setSelectedId(id);setTab('properties');}} onMove={(id,x,y)=>updateLayer(id,{x,y})} onMoveEnd={commitCurrentKeyframe} onCameraZoom={zoom=>updateCamera({zoom})} onCameraReset={()=>{setCameraTransform({x:0,y:0,zoom:1.4,z:18,roll:0});setLiveEditTime(null);}} cameraTransform={animatedCamera} playing={playing} playhead={playhead} windStrength={windStrength} windDirection={windDirection} atmosphere={atmosphere} environment={environment}/>
+        <div className="scene-toolbar"><div><span className="eyebrow">SCENE EDITOR</span><strong>Composition</strong></div><div className="toolbar-right"><label className="format-control"><span>FORMAT</span><select className="format-select" value={aspectRatio} onChange={e=>{recordHistory();setAspectRatio(e.target.value);setCameraTransform(v=>({...v,x:0,y:0,zoom:1,roll:0}));}} aria-label="Composition aspect ratio">{Object.keys(ASPECT_RATIOS).map(r=><option key={r} value={r}>{r} {r==='9:16'?'Portrait':r==='16:9'?'Landscape':r==='1:1'?'Square':r==='4:5'?'Portrait':'Portrait'}</option>)}</select></label><button className="small-icon" title="Full preview" aria-label="Open full preview" onClick={()=>{const el=document.querySelector(".viewport") as HTMLElement|null;if(!el)return;const request=el.requestFullscreen||((el as any).webkitRequestFullscreen);if(request)request.call(el);else alert("Full-screen preview is not supported by this browser.");}}><Maximize2 size={15}/></button></div></div>
+        <Viewport aspectRatio={aspectRatio} layers={animatedLayers} selectedId={selectedId} onSelect={id=>{setSelectedId(id);setTab('properties');}} onMove={(id,x,y)=>updateLayer(id,{x,y})} onMoveEnd={commitCurrentKeyframe} onCameraZoom={zoom=>updateCamera({zoom})} onCameraReset={()=>{setCameraTransform({x:0,y:0,zoom:1,z:18,roll:0});setLiveEditTime(null);}} cameraTransform={animatedCamera} playing={playing} playhead={playhead} windStrength={windStrength} windDirection={windDirection} atmosphere={atmosphere} environment={environment}/>
 <div className="timeline-panel">
  <div className="timeline-top"><div className="timeline-controls">
   <button className="play-btn" onClick={()=>{if(playhead>=duration)setPlayhead(0);setPlaying(v=>!v);}} title={playing?"Pause":"Play"}>{playing?<Pause size={15}/>:<Play size={15} fill="currentColor"/>}</button>
