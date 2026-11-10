@@ -157,3 +157,12 @@
   .workspace{grid-template-rows:minmax(0,1fr) 260px!important}
   .inspector{height:260px!important;min-height:260px!important;max-height:260px!important}
 }
+
+
+/* PARALLAX depth, keyframe deletion and direct layer removal */
+.keyframe-delete-bottom{display:inline-flex;align-items:center;justify-content:center;gap:5px;min-height:25px;padding:0 9px;border:1px solid #75404d;border-radius:7px;background:#2b1820;color:#ffb5c0;font-size:9px;white-space:nowrap}
+.keyframe-delete-bottom:disabled{opacity:.35;cursor:not-allowed}
+.layer-delete-btn{color:#e58b91!important}.layer-delete-btn:hover{color:#ff8b9c!important;background:#3a1d29!important;border-radius:5px}
+.depth-help{margin:-7px 0 15px;color:#858798;font-size:9px;line-height:1.45}
+@media(max-width:760px){.timeline-bottom{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:5px;font-size:7px}.timeline-bottom>span:last-child{text-align:right}.keyframe-delete-bottom{min-height:27px;padding:0 7px;font-size:8px}.layer-row{gap:4px}.layer-row button{padding:4px}}
+@media(max-width:390px){.timeline-bottom{grid-template-columns:auto auto;row-gap:4px}.timeline-bottom>span:last-child{grid-column:1/-1;text-align:center}.keyframe-delete-bottom{font-size:7px;padding:0 5px}}
