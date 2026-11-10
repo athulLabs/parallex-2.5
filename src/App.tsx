@@ -135,7 +135,7 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
       const framing=cameraSettingsRef.current;
       const distance=fitDistance.current*((framing.z??20)/20)/Math.max(.1,framing.zoom);
       camera.position.set(framing.x,framing.y,Math.max(.5,distance));
-      camera.lookAt(framing.x,framing.y,0);
+      camera.lookAt(0,0,0);
       camera.rotation.z=(framing.roll??0)*Math.PI/180;
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
@@ -228,7 +228,7 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
     if(starPoints) starPoints.visible=environment.stars && ['night','storm','cosmic','divine'].includes(environment.preset);
     if(starPoints) (starPoints.material as THREE.PointsMaterial).opacity=environment.preset==='storm'?.22:.75;
   }, [environment]);
-  useEffect(() => { const camera=cameraRef.current; if(!camera) return; const distance=fitDistance.current*((cameraTransform.z??20)/20)/Math.max(.1,cameraTransform.zoom); camera.position.set(cameraTransform.x,cameraTransform.y,Math.max(.5,distance)); camera.lookAt(cameraTransform.x,cameraTransform.y,0); camera.rotation.z=(cameraTransform.roll??0)*Math.PI/180; camera.zoom=1; camera.updateProjectionMatrix(); }, [cameraTransform,aspectRatio]);
+  useEffect(() => { const camera=cameraRef.current; if(!camera) return; const distance=fitDistance.current*((cameraTransform.z??20)/20)/Math.max(.1,cameraTransform.zoom); camera.position.set(cameraTransform.x,cameraTransform.y,Math.max(.5,distance)); camera.lookAt(0,0,0); camera.rotation.z=(cameraTransform.roll??0)*Math.PI/180; camera.zoom=1; camera.updateProjectionMatrix(); }, [cameraTransform,aspectRatio]);
 
   useEffect(() => {
     const scene = sceneRef.current; if (!scene) return;
