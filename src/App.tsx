@@ -16,7 +16,7 @@ type Layer = {
   id: string; name: string; url: string; fileName: string;
   x: number; y: number; z: number; scale: number; rotation: number;
   visible: boolean; locked: boolean; opacity: number; width: number; height: number; isVideo?: boolean;
-  motionX?: number; motionY?: number; motionRotation?: number; motionSpeed?: number;
+  motionX?: number; motionY?: number; motionRotation?: number; motionSpeed?: number; slot?: number;
 };
 const uid = () => Math.random().toString(36).slice(2, 10);
 const BOARD_H = 7.2;
@@ -72,7 +72,7 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const meshes = useRef(new Map<string, THREE.Mesh>());
-  const drag = useRef<{id:string; startX:number; startY:number; originX:number; originY:number; moved:boolean}|null>(null);
+  const drag = useRef<{id:string; startX:number; startY:number; originX:number; originY:number; planeZ:number; moved:boolean}|null>(null);
   const layersRef = useRef(layers);
   const moveRef = useRef(onMove);
   const playingRef = useRef(playing);
@@ -359,19 +359,18 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
 
   useEffect(()=>{meshes.current.forEach(mesh=>{const video=mesh.userData.videoElement as HTMLVideoElement|undefined;if(!video)return;if(playing){void video.play().catch(()=>{});}else{video.pause();if(Number.isFinite(video.duration)&&video.duration>0){const target=Math.min(playhead,video.duration);if(Math.abs(video.currentTime-target)>.08){try{video.currentTime=target;}catch{}}}}});},[playing,playhead]);
 
-  const pointerToWorld = (e: React.PointerEvent) => {
+  const pointerToWorld = (e: React.PointerEvent, planeZ = 0) => {
     const rect = host.current!.getBoundingClientRect();
     const camera = cameraRef.current!;
     const nx = ((e.clientX - rect.left) / rect.width) * 2 - 1;
     const ny = -((e.clientY - rect.top) / rect.height) * 2 + 1;
     const raycaster=new THREE.Raycaster();
     raycaster.setFromCamera(new THREE.Vector2(nx,ny),camera);
-    const point=raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0,0,1),0),new THREE.Vector3());
+    const point=raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0,0,1),-planeZ),new THREE.Vector3());
     return point ? {x:point.x,y:point.y} : {x:0,y:0};
   };
   const down = (e: React.PointerEvent) => {
     if (!cameraRef.current || !host.current) return;
-    const point = pointerToWorld(e);
     const ray = new THREE.Raycaster();
     ray.setFromCamera(new THREE.Vector2(
       ((e.clientX-host.current.getBoundingClientRect().left)/host.current.clientWidth)*2-1,
@@ -382,14 +381,15 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
     const id = hits[0].object.userData.layerId as string;
     const layer = layersRef.current.find(item => item.id === id);
     if (!layer) return;
+    const point = pointerToWorld(e, layer.z);
     onSelect(id);
     if (layer.locked) return;
-    drag.current = { id, startX: point.x, startY: point.y, originX: layer.x, originY: layer.y, moved: false };
+    drag.current = { id, startX: point.x, startY: point.y, originX: layer.x, originY: layer.y, planeZ: layer.z, moved: false };
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   };
   const move = (e: React.PointerEvent) => {
     const d = drag.current; if (!d || !host.current) return;
-    const point = pointerToWorld(e);
+    const point = pointerToWorld(e, d.planeZ);
     const x = d.originX + point.x - d.startX;
     const y = d.originY + point.y - d.startY;
     d.moved = true;
@@ -435,6 +435,8 @@ export default function App() {
   const historyTimer=useRef<number|null>(null);
   const autosaveTimer=useRef<number|null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const slotFileRef = useRef<HTMLInputElement>(null);
+  const [pendingSlot,setPendingSlot] = useState<number|null>(null);
   const projectFileRef = useRef<HTMLInputElement>(null);
 
   const snapshotEditor=():EditorSnapshot=>({layers:layers.map(layer=>({...layer})),selectedId,projectName,duration,keyframes:keyframes.map(frame=>({...frame,layers:{...frame.layers},camera:{...frame.camera}})),cameraTransform:{...cameraTransform},aspectRatio});
@@ -518,6 +520,22 @@ export default function App() {
     }));
     setLayers(prev => [...prev, ...additions]);
     if (additions[0]) { setSelectedId(additions[0].id); setTab('properties'); }
+  };
+  const uploadToSlot = (slot:number, file:File) => {
+    if(!file.type.startsWith('image/') && !file.type.startsWith('video/')) return;
+    recordHistory();
+    const slotDepth=[-6,-3.5,-1.5,0,2,4][slot-1];
+    const old=layers.find(layer=>layer.slot===slot);
+    const base=file.name.replace(/\\.[^.]+$/, '').replace(/[_-]+/g,' ').trim();
+    const layer:Layer={
+      id:uid(),slot,name:base||('Layer '+slot),fileName:file.name,url:URL.createObjectURL(file),
+      isVideo:file.type.startsWith('video/'),x:0,y:0,z:slotDepth,scale:1,rotation:0,
+      visible:true,locked:false,opacity:100,width:0,height:0,
+      motionX:0,motionY:0,motionRotation:0,motionSpeed:1
+    };
+    setLayers(prev=>[...prev.filter(item=>item.slot!==slot),layer]);
+    setSelectedId(layer.id);
+    setTab('properties');
   };
   const updateLayer = (id: string, patch: Partial<Layer>) => {
     recordHistory();
@@ -638,6 +656,17 @@ export default function App() {
       <section className="editor-main">
         <div className="scene-toolbar"><div><span className="eyebrow">SCENE EDITOR</span><strong>Composition</strong></div><div className="toolbar-right"><label className="format-control"><span>FORMAT</span><select className="format-select" value={aspectRatio} onChange={e=>{recordHistory();setAspectRatio(e.target.value);setCameraTransform(v=>({...v,x:0,y:0,z:20,zoom:1,roll:0}));}} aria-label="Composition aspect ratio">{Object.keys(ASPECT_RATIOS).map(r=><option key={r} value={r}>{r} {r==='9:16'?'Portrait':r==='16:9'?'Landscape':r==='1:1'?'Square':r==='4:5'?'Portrait':'Portrait'}</option>)}</select></label><button className="small-icon" title="Full preview" aria-label="Open full preview" onClick={()=>{const el=document.querySelector(".viewport") as HTMLElement|null;if(!el)return;const request=el.requestFullscreen||((el as any).webkitRequestFullscreen);if(request)request.call(el);else alert("Full-screen preview is not supported by this browser.");}}><Maximize2 size={15}/></button></div></div>
         <Viewport aspectRatio={aspectRatio} layers={animatedLayers} selectedId={selectedId} onSelect={id=>{setSelectedId(id);setTab('properties');}} onMove={(id,x,y)=>updateLayer(id,{x,y})} onMoveEnd={commitCurrentKeyframe} onCameraZoom={zoom=>updateCamera({zoom})} onCameraReset={()=>{setCameraTransform({x:0,y:0,zoom:1,z:20,roll:0});setLiveEditTime(null);}} cameraTransform={animatedCamera} playing={playing} playhead={playhead} windStrength={windStrength} windDirection={windDirection} atmosphere={atmosphere} environment={environment}/>
+        <div className="six-layer-dock" aria-label="Six individual scene layer upload slots">
+          <div className="six-layer-heading"><b>SCENE DEPTH</b><span>Upload one asset into each layer</span></div>
+          <div className="six-layer-buttons">
+            {(['Background','Far','Mid','Main','Near','Front'] as const).map((label,index)=>{
+              const slot=index+1, item=layers.find(layer=>layer.slot===slot);
+              return <button type="button" key={slot} className={'six-layer-slot '+(item?'filled ':'')+(item?.id===selectedId?'active':'')} onClick={()=>{setPendingSlot(slot);slotFileRef.current?.click();}} title={item?label+' · '+item.name+' · tap to replace':'Upload '+label+' layer'}>
+                <span className="slot-number">{slot}</span><span className="slot-copy"><b>{label}</b><small>{item?item.name:'＋ Upload'}</small></span><span className="slot-depth">Z {[-6,-3.5,-1.5,0,2,4][index].toFixed(1)}</span>
+              </button>;
+            })}
+          </div>
+        </div>
 <div className="timeline-panel">
  <div className="timeline-top"><div className="timeline-controls">
   <button className="play-btn" onClick={()=>{if(playhead>=duration)setPlayhead(0);setPlaying(v=>!v);}} title={playing?"Pause":"Play"}>{playing?<Pause size={15}/>:<Play size={15} fill="currentColor"/>}</button>
@@ -706,6 +735,6 @@ export default function App() {
     </div>
     {settingsOpen && <div className="mask-overlay" role="dialog" aria-modal="true" aria-label="PARALLAX settings"><div className="mask-dialog settings-dialog"><div className="mask-header"><div><span className="eyebrow">WORKSPACE</span><strong>Settings</strong></div><button className="mask-close" onClick={()=>setSettingsOpen(false)} aria-label="Close settings">×</button></div><label className="environment-check"><input type="checkbox" checked={autosaveEnabled} onChange={e=>setAutosaveEnabled(e.target.checked)}/> Automatically save recovery copy on this device</label><p className="environment-note">Your scene and imported artwork are saved privately in this browser using IndexedDB. Autosave helps restore your work if the tab reloads.</p><button className="wide-secondary" onClick={()=>{void clearRecovery().then(()=>alert("Local recovery copy cleared." )).catch(()=>alert("Could not clear local recovery copy."));}}>Clear local recovery copy</button><div className="mask-footer"><span>PARALLAX 2.5 · Local workspace</span><button className="mask-apply" onClick={()=>setSettingsOpen(false)}>Done</button></div></div></div>}
     {maskLayerId && layers.find(layer=>layer.id===maskLayerId) && <MaskEditor src={layers.find(layer=>layer.id===maskLayerId)!.url} name={layers.find(layer=>layer.id===maskLayerId)!.name} onApply={blob=>applyMask(maskLayerId,blob)} onClose={()=>setMaskLayerId(null)}/>}
-    <input ref={fileRef} type="file" accept="image/*,video/mp4,video/webm,video/quicktime" multiple hidden onChange={e=>{importFiles(e.target.files);e.target.value='';}}/><input ref={projectFileRef} type="file" accept=".json,.parallax.json,application/json" hidden onChange={e=>{const file=e.target.files?.[0];if(file)void loadProject(file);e.target.value='';}}/>
+    <input ref={fileRef} type="file" accept="image/*,video/mp4,video/webm,video/quicktime" multiple hidden onChange={e=>{importFiles(e.target.files);e.target.value='';}}/><input ref={slotFileRef} type="file" accept="image/*,video/mp4,video/webm,video/quicktime" hidden onChange={e=>{const file=e.target.files?.[0];if(file&&pendingSlot!==null)uploadToSlot(pendingSlot,file);setPendingSlot(null);e.target.value='';}}/><input ref={projectFileRef} type="file" accept=".json,.parallax.json,application/json" hidden onChange={e=>{const file=e.target.files?.[0];if(file)void loadProject(file);e.target.value='';}}/>
   </main>;
 }
