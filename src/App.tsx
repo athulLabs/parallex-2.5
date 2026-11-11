@@ -43,9 +43,9 @@ const readRecovery=async():Promise<any|null>=>{
 };
 const clearRecovery=async()=>{const db=await openAutosaveDb();await new Promise<void>((resolve,reject)=>{const tx=db.transaction(AUTOSAVE_STORE,'readwrite');tx.objectStore(AUTOSAVE_STORE).delete('latest');tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);});db.close();};
 
-function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoom, onCameraReset, cameraTransform, aspectRatio, playing, playhead, windStrength, windDirection, atmosphere, environment }: {
+function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoom, onCameraPan, onCameraReset, cameraTransform, aspectRatio, playing, playhead, windStrength, windDirection, atmosphere, environment }: {
   layers: Layer[]; selectedId: string | null; onSelect: (id: string) => void;
-  onMove: (id: string, x: number, y: number) => void; onMoveEnd: () => void; onCameraZoom:(zoom:number)=>void; onCameraReset:()=>void; cameraTransform: CameraTransform; aspectRatio:string; playing: boolean; playhead:number; windStrength: number; windDirection: number; atmosphere: {clouds:boolean;mist:boolean;dust:boolean;intensity:number}; environment: EnvironmentSettings;
+  onMove: (id: string, x: number, y: number) => void; onMoveEnd: () => void; onCameraZoom:(zoom:number)=>void; onCameraPan:(patch:Partial<CameraTransform>)=>void; onCameraReset:()=>void; cameraTransform: CameraTransform; aspectRatio:string; playing: boolean; playhead:number; windStrength: number; windDirection: number; atmosphere: {clouds:boolean;mist:boolean;dust:boolean;intensity:number}; environment: EnvironmentSettings;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const boardW=BOARD_H*(ASPECT_RATIOS[aspectRatio]??(9/16));
@@ -72,7 +72,9 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const meshes = useRef(new Map<string, THREE.Mesh>());
-  const drag = useRef<{id:string; startX:number; startY:number; originX:number; originY:number; planeZ:number; moved:boolean}|null>(null);
+  const drag = useRef<{kind:'layer';id:string;startX:number;startY:number;originX:number;originY:number;planeZ:number;moved:boolean}|{kind:'pan';startClientX:number;startClientY:number;originX:number;originY:number;moved:boolean}|null>(null);
+  const activePointers = useRef(new Map<number,{x:number;y:number}>());
+  const pinchStart = useRef<{distance:number;zoom:number}|null>(null);
   const layersRef = useRef(layers);
   const moveRef = useRef(onMove);
   const playingRef = useRef(playing);
@@ -371,33 +373,68 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
   };
   const down = (e: React.PointerEvent) => {
     if (!cameraRef.current || !host.current) return;
-    const ray = new THREE.Raycaster();
-    ray.setFromCamera(new THREE.Vector2(
-      ((e.clientX-host.current.getBoundingClientRect().left)/host.current.clientWidth)*2-1,
-      -((e.clientY-host.current.getBoundingClientRect().top)/host.current.clientHeight)*2+1
-    ), cameraRef.current);
-    const hits = ray.intersectObjects([...meshes.current.values()].filter(m => m.visible), false);
-    if (!hits.length) return;
-    const id = hits[0].object.userData.layerId as string;
-    const layer = layersRef.current.find(item => item.id === id);
-    if (!layer) return;
-    const point = pointerToWorld(e, layer.z);
-    onSelect(id);
-    if (layer.locked) return;
-    drag.current = { id, startX: point.x, startY: point.y, originX: layer.x, originY: layer.y, planeZ: layer.z, moved: false };
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    activePointers.current.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(activePointers.current.size >= 2){
+      drag.current=null;
+      const pts=[...activePointers.current.values()];
+      pinchStart.current={distance:Math.max(1,Math.hypot(pts[0].x-pts[1].x,pts[0].y-pts[1].y)),zoom:cameraSettingsRef.current.zoom};
+      return;
+    }
+    const rect=host.current.getBoundingClientRect();
+    const ray = new THREE.Raycaster();
+    ray.setFromCamera(new THREE.Vector2(((e.clientX-rect.left)/rect.width)*2-1,-((e.clientY-rect.top)/rect.height)*2+1),cameraRef.current);
+    const hits = ray.intersectObjects([...meshes.current.values()].filter(m => m.visible), false);
+    const layer=hits.length ? layersRef.current.find(item=>item.id===hits[0].object.userData.layerId) : undefined;
+    if(layer){
+      onSelect(layer.id);
+      if(!layer.locked){
+        const point=pointerToWorld(e,layer.z);
+        drag.current={kind:'layer',id:layer.id,startX:point.x,startY:point.y,originX:layer.x,originY:layer.y,planeZ:layer.z,moved:false};
+        return;
+      }
+    }
+    // Empty canvas (or a locked layer) pans the camera instead of doing nothing.
+    drag.current={kind:'pan',startClientX:e.clientX,startClientY:e.clientY,originX:cameraSettingsRef.current.x,originY:cameraSettingsRef.current.y,moved:false};
   };
   const move = (e: React.PointerEvent) => {
-    const d = drag.current; if (!d || !host.current) return;
-    const point = pointerToWorld(e, d.planeZ);
-    const x = d.originX + point.x - d.startX;
-    const y = d.originY + point.y - d.startY;
-    d.moved = true;
-    const mesh = meshes.current.get(d.id);
-    if (mesh) { mesh.position.x = x; mesh.position.y = y; }
-    moveRef.current(d.id, x, y);
+    const active=activePointers.current;
+    if(active.has(e.pointerId))active.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(active.size>=2){
+      const pts=[...active.values()];
+      const distance=Math.max(1,Math.hypot(pts[0].x-pts[1].x,pts[0].y-pts[1].y));
+      const start=pinchStart.current;
+      if(start)onCameraZoom(THREE.MathUtils.clamp(start.zoom*(distance/start.distance),.5,2.5));
+      return;
+    }
+    const d=drag.current; if(!d||!host.current)return;
+    if(d.kind==='layer'){
+      const point=pointerToWorld(e,d.planeZ);
+      const x=d.originX+point.x-d.startX, y=d.originY+point.y-d.startY;
+      d.moved=true;
+      const mesh=meshes.current.get(d.id);
+      if(mesh){mesh.position.x=x;mesh.position.y=y;}
+      moveRef.current(d.id,x,y);
+    }else{
+      const camera=cameraRef.current;
+      const rect=host.current.getBoundingClientRect();
+      const worldPerPixel=(2*Math.max(.5,camera.position.z)*Math.tan(THREE.MathUtils.degToRad(camera.fov/2)))/Math.max(1,rect.height);
+      const dx=e.clientX-d.startClientX, dy=e.clientY-d.startClientY;
+      d.moved=true;
+      onCameraPan({x:d.originX-dx*worldPerPixel,y:d.originY+dy*worldPerPixel});
+    }
   };
-  return <div className="viewport" ref={host} onPointerDown={down} onPointerMove={move} onPointerUp={() => { if(drag.current?.moved) onMoveEnd(); drag.current = null; }} onPointerCancel={() => { if(drag.current?.moved) onMoveEnd(); drag.current = null; }}>
+  const finishPointer=(e:React.PointerEvent)=>{
+    activePointers.current.delete(e.pointerId);
+    if(activePointers.current.size<2)pinchStart.current=null;
+    if(activePointers.current.size===1){
+      // A remaining finger can start a fresh pan without a jump.
+      const remaining=[...activePointers.current.values()][0];
+      drag.current={kind:'pan',startClientX:remaining.x,startClientY:remaining.y,originX:cameraSettingsRef.current.x,originY:cameraSettingsRef.current.y,moved:false};
+    }else if(drag.current?.kind==='layer'&&drag.current.moved)onMoveEnd();
+    drag.current=null;
+  };
+  return <div className="viewport" ref={host} onPointerDown={down} onPointerMove={move} onPointerUp={finishPointer} onPointerCancel={finishPointer}>
     {layers.length === 0 && <div className="empty-scene"><div className="empty-icon"><ImageIcon size={26}/></div><strong>Your canvas is empty</strong><span>Import artwork to begin building your 2.5D scene.</span></div>}
     <div className="viewport-badge"><span className="live-dot"/> {aspectRatio} COMPOSITION</div>
     <div className="viewport-actions">
@@ -655,7 +692,7 @@ export default function App() {
       </aside>
       <section className="editor-main">
         <div className="scene-toolbar"><div><span className="eyebrow">SCENE EDITOR</span><strong>Composition</strong></div><div className="toolbar-right"><label className="format-control"><span>FORMAT</span><select className="format-select" value={aspectRatio} onChange={e=>{recordHistory();setAspectRatio(e.target.value);setCameraTransform(v=>({...v,x:0,y:0,z:20,zoom:1,roll:0}));}} aria-label="Composition aspect ratio">{Object.keys(ASPECT_RATIOS).map(r=><option key={r} value={r}>{r} {r==='9:16'?'Portrait':r==='16:9'?'Landscape':r==='1:1'?'Square':r==='4:5'?'Portrait':'Portrait'}</option>)}</select></label><button className="small-icon" title="Full preview" aria-label="Open full preview" onClick={()=>{const el=document.querySelector(".viewport") as HTMLElement|null;if(!el)return;const request=el.requestFullscreen||((el as any).webkitRequestFullscreen);if(request)request.call(el);else alert("Full-screen preview is not supported by this browser.");}}><Maximize2 size={15}/></button></div></div>
-        <Viewport aspectRatio={aspectRatio} layers={animatedLayers} selectedId={selectedId} onSelect={id=>{setSelectedId(id);setTab('properties');}} onMove={(id,x,y)=>updateLayer(id,{x,y})} onMoveEnd={commitCurrentKeyframe} onCameraZoom={zoom=>updateCamera({zoom})} onCameraReset={()=>{setCameraTransform({x:0,y:0,zoom:1,z:20,roll:0});setLiveEditTime(null);}} cameraTransform={animatedCamera} playing={playing} playhead={playhead} windStrength={windStrength} windDirection={windDirection} atmosphere={atmosphere} environment={environment}/>
+        <Viewport aspectRatio={aspectRatio} layers={animatedLayers} selectedId={selectedId} onSelect={id=>{setSelectedId(id);setTab('properties');}} onMove={(id,x,y)=>updateLayer(id,{x,y})} onMoveEnd={commitCurrentKeyframe} onCameraZoom={zoom=>updateCamera({zoom})} onCameraPan={patch=>updateCamera(patch)} onCameraReset={()=>{setCameraTransform({x:0,y:0,zoom:1,z:20,roll:0});setLiveEditTime(null);}} cameraTransform={animatedCamera} playing={playing} playhead={playhead} windStrength={windStrength} windDirection={windDirection} atmosphere={atmosphere} environment={environment}/>
         <div className="six-layer-dock" aria-label="Six individual scene layer upload slots">
           <div className="six-layer-heading"><b>SCENE DEPTH</b><span>Upload one asset into each layer</span></div>
           <div className="six-layer-buttons">
