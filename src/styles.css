@@ -196,3 +196,93 @@
  .six-layer-slot .slot-copy b{font-size:9px}.six-layer-slot .slot-copy small{font-size:8px}
 }
 @media(max-width:390px){.six-layer-slot{grid-template-columns:16px minmax(0,1fr);column-gap:4px}.six-layer-slot .slot-number{width:16px;height:16px;font-size:9px}.six-layer-slot .slot-copy b{font-size:8px}}
+
+
+/* Mobile layout repair: keep the layer dock and animation timeline inside the editor */
+@media (max-width:760px) {
+  .app-shell { overflow:hidden; }
+  .workspace {
+    grid-template-rows:minmax(0,1fr) 238px !important;
+    min-height:0;
+  }
+  .editor-main {
+    display:grid !important;
+    grid-template-rows:31px minmax(105px,1fr) auto auto !important;
+    align-content:stretch;
+    min-height:0 !important;
+    overflow:hidden;
+    gap:6px !important;
+    padding:7px 7px 6px !important;
+  }
+  .scene-toolbar { min-height:31px; height:31px; }
+  .viewport {
+    min-height:105px !important;
+    height:auto !important;
+    flex:none !important;
+  }
+  .six-layer-dock {
+    min-height:0;
+    padding:5px 6px !important;
+    gap:4px !important;
+  }
+  .six-layer-buttons { gap:4px !important; }
+  .six-layer-slot { min-height:34px !important; }
+  .timeline-panel {
+    display:flex !important;
+    flex-shrink:0 !important;
+    min-height:105px;
+    padding:6px 7px !important;
+    gap:4px !important;
+    overflow:visible;
+    position:relative;
+    z-index:5;
+  }
+  .timeline-top { display:grid !important; grid-template-columns:auto minmax(0,1fr); gap:5px !important; }
+  .timeline-actions { display:grid !important; grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto !important; gap:4px !important; }
+  .timeline-actions .atmosphere-toggle,
+  .timeline-actions .atmosphere-intensity { display:none !important; }
+  .timeline-actions .keyframe-btn,
+  .timeline-actions .keyframe-delete-btn {
+    display:flex !important;
+    width:100% !important;
+    min-width:0 !important;
+    height:28px !important;
+    justify-content:center;
+    padding:0 4px !important;
+    font-size:8px !important;
+  }
+  .timeline-actions>label:not(.atmosphere-toggle):not(.atmosphere-intensity) {
+    grid-column:3 !important;
+    grid-row:1 !important;
+  }
+  .timeline-ruler { display:flex !important; }
+  .timeline-scrub { display:flex !important; min-height:20px; }
+  .timeline-scrub input { display:block !important; min-width:0; }
+  .timeline-bottom { display:flex !important; justify-content:space-between; }
+  .inspector { min-height:0 !important; }
+  .layer-panel,.properties-panel {
+    min-height:0 !important;
+    overflow-y:auto !important;
+    overscroll-behavior:contain;
+    -webkit-overflow-scrolling:touch;
+  }
+  .properties-panel input[type="range"] {
+    display:block !important;
+    width:100% !important;
+    min-width:0 !important;
+    height:30px !important;
+    margin:7px 0 0 !important;
+    padding:0 !important;
+    touch-action:none !important;
+    accent-color:#9877ff;
+    cursor:pointer;
+  }
+  .properties-panel label { min-width:0; }
+}
+@media (max-width:390px) {
+  .workspace { grid-template-rows:minmax(0,1fr) 225px !important; }
+  .editor-main { grid-template-rows:31px minmax(90px,1fr) auto auto !important; }
+  .viewport { min-height:90px !important; }
+  .six-layer-slot { min-height:32px !important; }
+  .timeline-panel { min-height:102px; }
+}
