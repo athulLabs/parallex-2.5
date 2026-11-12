@@ -417,6 +417,7 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
       moveRef.current(d.id,x,y);
     }else{
       const camera=cameraRef.current;
+      if(!camera)return;
       const rect=host.current.getBoundingClientRect();
       const worldPerPixel=(2*Math.max(.5,camera.position.z)*Math.tan(THREE.MathUtils.degToRad(camera.fov/2)))/Math.max(1,rect.height);
       const dx=e.clientX-d.startClientX, dy=e.clientY-d.startClientY;
