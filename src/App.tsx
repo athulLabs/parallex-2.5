@@ -428,10 +428,12 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
     activePointers.current.delete(e.pointerId);
     if(activePointers.current.size<2)pinchStart.current=null;
     if(activePointers.current.size===1){
-      // A remaining finger can start a fresh pan without a jump.
+      // Keep the remaining finger in pan mode after a pinch; do not clear it below.
       const remaining=[...activePointers.current.values()][0];
       drag.current={kind:'pan',startClientX:remaining.x,startClientY:remaining.y,originX:cameraSettingsRef.current.x,originY:cameraSettingsRef.current.y,moved:false};
-    }else if(drag.current?.kind==='layer'&&drag.current.moved)onMoveEnd();
+      return;
+    }
+    if(drag.current?.kind==='layer'&&drag.current.moved)onMoveEnd();
     drag.current=null;
   };
   return <div className="viewport" ref={host} onPointerDown={down} onPointerMove={move} onPointerUp={finishPointer} onPointerCancel={finishPointer}>
