@@ -646,6 +646,42 @@ export default function App() {
       alert('Could not save this project. Try removing very large images and saving again.');
     }
   };
+  const exportVideo = async () => {
+    const canvas = document.querySelector('.viewport canvas') as HTMLCanvasElement | null;
+    if (!canvas) { alert('The preview is not ready yet.'); return; }
+    if (keyframes.length < 2) { alert('Add at least two keyframes at different times before exporting a video.'); return; }
+    if (typeof canvas.captureStream !== 'function' || typeof MediaRecorder === 'undefined') {
+      alert('Video recording is not supported by this browser.'); return;
+    }
+    try {
+      setPlaying(false);
+      setPlayhead(0);
+      await new Promise(resolve => window.setTimeout(resolve, 250));
+      const stream = canvas.captureStream(30);
+      const mimeType = ['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'].find(type => MediaRecorder.isTypeSupported(type));
+      const recorder = new MediaRecorder(stream, mimeType ? {mimeType} : undefined);
+      const chunks: BlobPart[] = [];
+      recorder.ondataavailable = event => { if (event.data.size) chunks.push(event.data); };
+      recorder.onerror = () => { stream.getTracks().forEach(track => track.stop()); alert('Video export failed. Please try again.'); };
+      recorder.onstop = () => {
+        stream.getTracks().forEach(track => track.stop());
+        const blob = new Blob(chunks, {type: recorder.mimeType || 'video/webm'});
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = (projectName.trim() || 'parallax-scene').replace(/[^a-z0-9-_]+/gi,'-') + '.webm';
+        link.click();
+        window.setTimeout(() => URL.revokeObjectURL(url), 3000);
+        setPlaying(false);
+        setPlayhead(0);
+      };
+      recorder.start(100);
+      setPlaying(true);
+      window.setTimeout(() => { if (recorder.state !== 'inactive') recorder.stop(); }, duration * 1000 + 250);
+    } catch {
+      alert('Could not start video export. Please try again.');
+    }
+  };
   const loadProject = async (file: File) => {
     try {
       const payload = JSON.parse(await file.text());
@@ -682,7 +718,7 @@ export default function App() {
     <header className="topbar">
       <div className="brand"><div className="brand-mark">P</div><div><b>PARALLAX</b><small>2.5 CINEMATIC STUDIO</small></div></div>
       <div className="project-title"><input value={projectName} onChange={e=>setProjectName(e.target.value)} aria-label="Project name"/><span className="saved-dot"/><small>SESSION</small></div>
-      <div className="top-actions"><button className="icon-btn" title="Open PARALLAX project" onClick={()=>projectFileRef.current?.click()}><FolderOpen size={17}/></button><button className="icon-btn" title="Save project JSON" onClick={saveProject}><Download size={17}/></button><button className="icon-btn mobile-hidden" title="Undo" aria-label="Undo" disabled={undoStack.current.length===0} onClick={undo}><Undo2 size={17}/></button><button className="icon-btn mobile-hidden" title="Redo" aria-label="Redo" disabled={redoStack.current.length===0} onClick={redo}><Redo2 size={17}/></button><button className="export-btn" onClick={()=>{const canvas=document.querySelector(".viewport canvas") as HTMLCanvasElement|null;if(!canvas){alert("Canvas is not ready yet.");return;}try{const link=document.createElement("a");link.download=(projectName.trim()||"parallax-scene").replace(/[^a-z0-9-_]+/gi,"-")+".png";link.href=canvas.toDataURL("image/png");link.click();}catch{alert("Could not export the canvas. Please try again.");}}}><Download size={15}/> Download PNG</button></div>
+      <div className="top-actions"><button className="icon-btn" title="Open PARALLAX project" onClick={()=>projectFileRef.current?.click()}><FolderOpen size={17}/></button><button className="icon-btn" title="Save project JSON" onClick={saveProject}><Download size={17}/></button><button className="icon-btn mobile-hidden" title="Undo" aria-label="Undo" disabled={undoStack.current.length===0} onClick={undo}><Undo2 size={17}/></button><button className="icon-btn mobile-hidden" title="Redo" aria-label="Redo" disabled={redoStack.current.length===0} onClick={redo}><Redo2 size={17}/></button><button className="export-btn" onClick={exportVideo} title="Render the keyframed scene as a video"><Film size={15}/> Export Video</button></div>
     </header>
     <div className="workspace">
       <aside className="left-rail">
