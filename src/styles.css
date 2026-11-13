@@ -365,3 +365,95 @@
   .timeline-actions .keyframe-btn,
   .timeline-actions .keyframe-delete-btn { font-size: 8px !important; padding: 0 3px !important; }
 }
+
+
+/* Timeline v2: visible, dedicated animation strip with an actual keyframe lane */
+.timeline-panel {
+  display:flex !important;
+  visibility:visible !important;
+  opacity:1 !important;
+  position:relative !important;
+  z-index:20 !important;
+  flex:0 0 164px !important;
+  height:164px !important;
+  min-height:164px !important;
+  overflow:visible !important;
+  padding:10px 12px !important;
+  gap:8px !important;
+  background:#11131d !important;
+  border:1px solid #51436f !important;
+}
+.timeline-top { display:flex !important; flex-direction:row !important; align-items:center !important; justify-content:space-between !important; gap:8px !important; }
+.timeline-controls { display:flex !important; align-items:center !important; gap:8px !important; }
+.timeline-actions { display:flex !important; align-items:center !important; gap:7px !important; }
+.timeline-actions .atmosphere-toggle,.timeline-actions .atmosphere-intensity { display:none !important; }
+.timeline-actions .keyframe-btn,.timeline-actions .keyframe-delete-btn {
+  display:flex !important; visibility:visible !important; opacity:1 !important;
+  min-width:94px !important; height:34px !important; padding:0 10px !important;
+  align-items:center !important; justify-content:center !important; font-size:10px !important;
+}
+.timeline-actions .keyframe-btn { background:#6946d5 !important; color:white !important; }
+.timeline-actions .keyframe-delete-btn { background:#29202b !important; color:#f0b6c0 !important; }
+.timeline-ruler { display:flex !important; justify-content:space-between !important; font-size:10px !important; }
+.timeline-scrub { display:flex !important; position:relative !important; height:25px !important; min-height:25px !important; overflow:visible !important; }
+.timeline-scrub input { display:block !important; width:100% !important; height:25px !important; margin:0 !important; accent-color:#a98aff !important; position:relative !important; z-index:2 !important; }
+.keyframe-markers { display:block !important; position:absolute !important; inset:0 !important; z-index:4 !important; pointer-events:none !important; }
+.keyframe-markers button {
+  display:block !important; visibility:visible !important; opacity:1 !important;
+  position:absolute !important; top:7px !important; width:13px !important; height:13px !important;
+  transform:translateX(-50%) rotate(45deg) !important; pointer-events:auto !important;
+  background:#a889ff !important; border:2px solid white !important; border-radius:2px !important;
+  box-shadow:0 0 0 2px #161222,0 0 9px #a889ff !important;
+}
+.keyframe-markers button.selected { width:17px !important; height:17px !important; top:5px !important; background:white !important; }
+.keyframe-lane {
+  display:flex !important; visibility:visible !important; opacity:1 !important;
+  align-items:center !important; gap:7px !important; min-height:30px !important;
+  padding:4px 7px !important; overflow-x:auto !important; overflow-y:hidden !important;
+  border:1px solid #39334c !important; border-radius:6px !important; background:#191725 !important;
+  white-space:nowrap !important;
+}
+.keyframe-lane > b { color:#bcaaff !important; font:9px 'DM Mono' !important; flex:0 0 auto !important; }
+.keyframe-lane .keyframe-empty { color:#9a9bad !important; font-size:9px !important; }
+.keyframe-lane button {
+  display:inline-flex !important; visibility:visible !important; flex:0 0 auto !important;
+  min-height:23px !important; padding:0 8px !important; border:1px solid #63518d !important;
+  border-radius:5px !important; color:#d9ceff !important; background:#30264a !important;
+  font:9px 'DM Mono' !important;
+}
+.keyframe-lane button.active { background:#805cf4 !important; color:white !important; border-color:#c2adff !important; }
+.timeline-bottom { display:flex !important; justify-content:space-between !important; min-height:13px !important; font-size:9px !important; }
+@media (max-width:760px) {
+  .editor-main {
+    display:grid !important;
+    grid-template-rows:30px minmax(90px,1fr) auto 164px !important;
+    gap:6px !important; overflow:visible !important;
+    padding:6px !important; min-height:0 !important;
+  }
+  .timeline-panel {
+    grid-row:4 !important; width:100% !important;
+    height:164px !important; min-height:164px !important;
+    flex:none !important; padding:8px !important; gap:7px !important;
+  }
+  .timeline-top { flex-direction:column !important; align-items:stretch !important; gap:7px !important; }
+  .timeline-actions { display:flex !important; justify-content:flex-start !important; flex-wrap:nowrap !important; }
+  .timeline-actions .keyframe-btn,.timeline-actions .keyframe-delete-btn {
+    min-width:0 !important; flex:1 1 0 !important; height:32px !important;
+    font-size:9px !important; padding:0 5px !important;
+  }
+  .timeline-actions .timeline-duration { display:flex !important; align-items:center !important; gap:4px !important; font-size:8px !important; }
+  .timeline-actions select { width:46px !important; min-width:46px !important; height:29px !important; }
+  .timeline-controls .play-btn,.timeline-controls .timeline-icon { width:28px !important; height:27px !important; flex:0 0 28px !important; }
+  .timeline-ruler { font-size:8px !important; }
+  .timeline-scrub { height:25px !important; min-height:25px !important; }
+  .keyframe-lane { min-height:28px !important; }
+}
+@media (max-width:390px) {
+  .editor-main { grid-template-rows:28px minmax(80px,1fr) auto 164px !important; }
+  .timeline-panel { height:164px !important; min-height:164px !important; }
+}
+@media (max-height:700px) and (max-width:760px) {
+  .workspace { grid-template-rows:minmax(0,1fr) 150px !important; }
+  .editor-main { grid-template-rows:26px minmax(75px,1fr) auto 154px !important; }
+  .timeline-panel { height:154px !important; min-height:154px !important; flex-basis:154px !important; }
+}
