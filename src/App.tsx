@@ -743,16 +743,31 @@ export default function App() {
             })}
           </div>
         </div>
-<div className="timeline-panel">
- <div className="timeline-top"><div className="timeline-controls">
-  <button className="play-btn" onClick={()=>{if(playhead>=duration)setPlayhead(0);setPlaying(v=>!v);}} title={playing?"Pause":"Play"}>{playing?<Pause size={15}/>:<Play size={15} fill="currentColor"/>}</button>
-  <button className="timeline-icon" onClick={()=>{setPlaying(false);setPlayhead(0);}} title="Go to start"><SkipBack size={15}/></button><span className="time-readout">{playhead.toFixed(2)}s / {duration.toFixed(1)}s</span>
- </div><div className="timeline-actions"><label className="atmosphere-toggle"><input type="checkbox" checked={atmosphere.clouds} onChange={e=>setAtmosphere(v=>({...v,clouds:e.target.checked}))}/> Clouds</label><label className="atmosphere-toggle"><input type="checkbox" checked={atmosphere.mist} onChange={e=>setAtmosphere(v=>({...v,mist:e.target.checked}))}/> Mist</label><label className="atmosphere-toggle"><input type="checkbox" checked={atmosphere.dust} onChange={e=>setAtmosphere(v=>({...v,dust:e.target.checked}))}/> Dust</label><label className="atmosphere-intensity">Atmosphere <input type="range" min="0" max="2" step=".05" value={atmosphere.intensity} onChange={e=>setAtmosphere(v=>({...v,intensity:+e.target.value}))}/></label><button className="keyframe-btn" onClick={addKeyframe} title="Add a keyframe for the current camera and layer positions"><KeyRound size={14}/> Add keyframe</button><button className="keyframe-delete-btn" disabled={!keyframes.length} onClick={deleteSelectedKeyframe} title={selectedKeyframe?"Delete selected keyframe":"Delete keyframe nearest the playhead"}><Trash2 size={13}/> Delete</button><label>Duration <select value={duration} onChange={e=>{recordHistory();setDuration(+e.target.value);setPlayhead(p=>Math.min(p,+e.target.value));setPlaying(false);}}>{[5,10,15,20,30,45,60,90,120].map(v=><option key={v} value={v}>{v}s</option>)}</select></label></div></div>
- <div className="timeline-ruler"><span>00:00</span><span>{(duration/4).toFixed(1)}s</span><span>{(duration/2).toFixed(1)}s</span><span>{(duration*.75).toFixed(1)}s</span><span>{duration.toFixed(1)}s</span></div>
- <div className="timeline-scrub"><input aria-label="Timeline playhead" type="range" min="0" max={duration} step=".01" value={playhead} onChange={e=>{setPlaying(false);setPlayhead(+e.target.value);}}/><div className="keyframe-markers">{keyframes.map(frame=><button key={frame.id} className={selectedKeyframeId===frame.id?"selected":""} aria-label={"Select keyframe at "+frame.time.toFixed(2)+" seconds"} title={"Keyframe at "+frame.time.toFixed(2)+"s · tap to select"} style={{left:(frame.time/duration*100)+"%"}} onClick={()=>{setPlaying(false);setSelectedKeyframeId(frame.id);setPlayhead(frame.time);}}/>)}</div></div>
- <div className="timeline-bottom"><span><CircleDot size={11}/> {keyframes.length} keyframes</span><span>30 FPS · Smooth interpolation</span></div>
-</div>
-      </section>
+<div className="timeline-panel" aria-label="Animation timeline">
+  <div className="timeline-top">
+   <div className="timeline-controls">
+    <button className="play-btn" onClick={()=>{if(playhead>=duration)setPlayhead(0);setPlaying(v=>!v);}} title={playing?"Pause":"Play"}>{playing?<Pause size={15}/>:<Play size={15} fill="currentColor"/>}</button>
+    <button className="timeline-icon" onClick={()=>{setPlaying(false);setPlayhead(0);}} title="Go to start"><SkipBack size={15}/></button>
+    <span className="time-readout">{playhead.toFixed(2)}s <i>/</i> {duration.toFixed(1)}s</span>
+   </div>
+   <div className="timeline-actions">
+    <button className="keyframe-btn" onClick={addKeyframe} title="Save the current scene state at this time"><KeyRound size={14}/> + KEYFRAME</button>
+    <button className="keyframe-delete-btn" disabled={!keyframes.length} onClick={deleteSelectedKeyframe} title="Delete selected keyframe"><Trash2 size={13}/> DELETE</button>
+    <label className="timeline-duration">DURATION <select value={duration} onChange={e=>{recordHistory();setDuration(+e.target.value);setPlayhead(p=>Math.min(p,+e.target.value));setPlaying(false);}}>{[5,10,15,20,30,45,60,90,120].map(v=><option key={v} value={v}>{v}s</option>)}</select></label>
+   </div>
+  </div>
+  <div className="timeline-ruler"><span>0s</span><span>{(duration*.25).toFixed(1)}s</span><span>{(duration*.5).toFixed(1)}s</span><span>{(duration*.75).toFixed(1)}s</span><span>{duration}s</span></div>
+  <div className="timeline-scrub">
+   <input aria-label="Timeline playhead" type="range" min="0" max={duration} step="0.01" value={playhead} onChange={e=>{setPlaying(false);setPlayhead(+e.target.value);}}/>
+   <div className="keyframe-markers">{keyframes.map(frame=><button key={frame.id} className={selectedKeyframeId===frame.id?"selected":""} aria-label={"Select keyframe at "+frame.time.toFixed(2)+" seconds"} title={"Keyframe at "+frame.time.toFixed(2)+"s"} style={{left:(frame.time/duration*100)+"%"}} onClick={()=>{setPlaying(false);setSelectedKeyframeId(frame.id);setPlayhead(frame.time);}}/>)}</div>
+  </div>
+  <div className="keyframe-lane" aria-label="Saved keyframes">
+   <b>KEYFRAMES</b>
+   {keyframes.length===0 ? <span className="keyframe-empty">No keyframes yet — move the playhead and tap + KEYFRAME.</span> : [...keyframes].sort((x,y)=>x.time-y.time).map((frame,index)=><button type="button" key={frame.id} className={selectedKeyframeId===frame.id?"active":""} onClick={()=>{setPlaying(false);setSelectedKeyframeId(frame.id);setPlayhead(frame.time);}}>{index+1} · {frame.time.toFixed(2)}s</button>)}
+  </div>
+  <div className="timeline-bottom"><span><CircleDot size={11}/> {keyframes.length} saved</span><span>30 FPS · Smooth motion</span></div>
+ </div>
+       </section>
       <aside className="inspector">
         <div className="inspector-tabs"><button className={tab==='layers'?'chosen':''} onClick={()=>setTab('layers')}><Layers3 size={15}/> Layers</button><button className={tab==='properties'?'chosen':''} onClick={()=>setTab('properties')}><SlidersHorizontal size={15}/> Properties</button><button className={tab==='environment'?'chosen':''} onClick={()=>setTab('environment')}><Waves size={15}/> World</button></div>
         {tab==='environment' ? <div className="properties-panel environment-panel">
