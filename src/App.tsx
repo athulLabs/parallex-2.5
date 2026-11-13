@@ -542,7 +542,7 @@ export default function App() {
     camera:{...cameraSnapshot}
   });
   const writeKeyframe = (frame:Keyframe) => setKeyframes(prev=>[...prev.filter(item=>Math.abs(item.time-frame.time)>0.015),frame].sort((a,b)=>a.time-b.time));
-  const addKeyframe = () => { recordHistory(); const frame=makeFrame(playhead,layers,cameraTransform); writeKeyframe(frame); setSelectedKeyframeId(frame.id); setLiveEditTime(null); };
+  const addKeyframe = () => { recordHistory(); const frame=makeFrame(playhead,animatedLayers,animatedCamera); setKeyframes(prev=>[...prev.filter(item=>Math.abs(item.time-frame.time)>0.015),frame].sort((x,y)=>x.time-y.time)); setSelectedKeyframeId(frame.id); setLiveEditTime(null); setPlaying(false); };
   const selectedKeyframe = keyframes.find(frame=>frame.id===selectedKeyframeId) ?? null;
   const deleteSelectedKeyframe = () => { const target=selectedKeyframe ?? [...keyframes].sort((a,b)=>Math.abs(a.time-playhead)-Math.abs(b.time-playhead))[0] ?? null; if(!target)return; recordHistory(); setKeyframes(prev=>prev.filter(frame=>frame.id!==target.id)); setSelectedKeyframeId(null); };
   const playbackStart = useRef(0);
