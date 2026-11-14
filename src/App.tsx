@@ -64,10 +64,9 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
     // Orbit around the composition target. Yaw rotates horizontally; pitch tilts vertically.
     const yaw=THREE.MathUtils.degToRad(framing.yaw??0);
     const pitch=THREE.MathUtils.degToRad(THREE.MathUtils.clamp(framing.pitch??0,-80,80));
-    const orbitRadius=Math.max(.5,distance);
-    const horizontalRadius=orbitRadius*Math.cos(pitch);
     const target=new THREE.Vector3(framing.x,framing.y,0);
-    camera.position.set(framing.x+Math.sin(yaw)*horizontalRadius,framing.y+Math.sin(pitch)*orbitRadius,orbitRadius*Math.cos(yaw)*Math.cos(pitch));
+    const spherical=new THREE.Spherical(Math.max(.5,distance),Math.PI/2-pitch,yaw);
+    camera.position.setFromSpherical(spherical).add(target);
     camera.up.set(0,1,0);
     camera.lookAt(target);
     camera.rotateZ(roll);
@@ -109,9 +108,12 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
     const camera = new THREE.PerspectiveCamera(20.4, 1, 0.1, 100);
     camera.position.set(0, 0, 20);
     camera.lookAt(0, 0, 0);
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, preserveDrawingBuffer: true });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, preserveDrawingBuffer: true, powerPreference: 'high-performance' });
+    // ULTRA: render at native device density (up to 3x) with MSAA enabled.
+    renderer.setPixelRatio(Math.min(Math.max(window.devicePixelRatio || 1, 2), 3));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.NoToneMapping;
+    renderer.setClearColor(0x0e1018, 1);
     renderer.domElement.style.touchAction = 'none';
     host.current.appendChild(renderer.domElement);
     scene.add(new THREE.AmbientLight(0xffffff, 1.5));
@@ -327,7 +329,7 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
         if(layer.isVideo){
           const video=document.createElement('video');video.src=layer.url;video.muted=true;video.loop=true;video.playsInline=true;video.preload='auto';video.crossOrigin='anonymous';
           mesh.userData.videoElement=video;
-          const texture=new THREE.VideoTexture(video);texture.colorSpace=THREE.SRGBColorSpace;material.map=texture;material.needsUpdate=true;
+          const texture=new THREE.VideoTexture(video);texture.colorSpace=THREE.SRGBColorSpace;texture.minFilter=THREE.LinearFilter;texture.magFilter=THREE.LinearFilter;texture.generateMipmaps=false;material.map=texture;material.needsUpdate=true;
           const fitVideo=()=>{if(!meshes.current.has(layer.id)||mesh!.userData.sourceUrl!==layer.url)return;const aspect=(video.videoWidth||16)/(video.videoHeight||9);const boardAspect=boardW/BOARD_H;const fitW=aspect>boardAspect?boardW:BOARD_H*aspect;const fitH=aspect>boardAspect?boardW/aspect:BOARD_H;mesh!.geometry.dispose();mesh!.geometry=new THREE.PlaneGeometry(fitW,fitH);};
           video.addEventListener('loadedmetadata',fitVideo,{once:true});
           if(video.readyState>=1)fitVideo();
@@ -338,6 +340,10 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
             return;
           }
           texture.colorSpace = THREE.SRGBColorSpace;
+          texture.generateMipmaps = true;
+          texture.minFilter = THREE.LinearMipmapLinearFilter;
+          texture.magFilter = THREE.LinearFilter;
+          texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
           material.map = texture;
           material.needsUpdate = true;
           const image = texture.image as HTMLImageElement;
@@ -469,6 +475,8 @@ export default function App() {
   const [environment,setEnvironment] = useState<EnvironmentSettings>({preset:'divine',intensity:1,horizon:0.35,stars:true,fabric:true,fabricScale:1,fabricOpacity:0.28,fabricGlow:0.55});
   const [keyframes, setKeyframes] = useState<Keyframe[]>([]);
   const [cameraTransform, setCameraTransform] = useState<CameraTransform>({x:0,y:0,zoom:1,z:18,roll:0});
+  const cameraTransformRef = useRef<CameraTransform>(cameraTransform);
+  cameraTransformRef.current = cameraTransform;
   const [aspectRatio,setAspectRatio]=useState('9:16');
   const [selectedKeyframeId,setSelectedKeyframeId]=useState<string|null>(null);
   const [liveEditTime, setLiveEditTime] = useState<number | null>(null);
@@ -598,18 +606,26 @@ export default function App() {
     setMotionCopyTargets([]);
   };
   const setSelectedDepth = (z:number) => { if(!selectedId)return; recordHistory(); const next=layers.map(layer=>layer.id===selectedId?{...layer,z}:layer); setLayers(next); const existing=keyframes.find(frame=>Math.abs(frame.time-playhead)<=0.015); if(existing){const frame=makeFrame(existing.time,next,cameraTransform);frame.id=existing.id;writeKeyframe(frame);} };
-  const updateCamera = (patch:Partial<CameraTransform>) => {
-    // One undo snapshot is recorded at slider pointer-down, not on every slider tick.
+  const beginCameraEdit = () => {
+    recordHistory();
+    // Start from the evaluated camera at the playhead, then keep every drag update in a ref.
+    const start={...animatedCamera};
+    cameraTransformRef.current=start;
+    setCameraTransform(start);
     setLiveEditTime(playhead);
-    setCameraTransform(prev=>({...prev,...animatedCamera,...patch}));
+  };
+  const updateCamera = (patch:Partial<CameraTransform>) => {
+    const next={...cameraTransformRef.current,...patch};
+    cameraTransformRef.current=next;
+    setLiveEditTime(playhead);
+    setCameraTransform(next);
   };
   // Editing a property must never create a keyframe implicitly.
   // Only update a keyframe when the playhead is already on an existing marker.
   const commitCurrentKeyframe = () => {
     const existing=keyframes.find(frame=>Math.abs(frame.time-playhead)<=0.015);
-    if(existing){const frame=makeFrame(existing.time,layers,cameraTransform);frame.id=existing.id;writeKeyframe(frame);}
+    if(existing){const frame=makeFrame(existing.time,layers,cameraTransformRef.current);frame.id=existing.id;writeKeyframe(frame);}
     // Keep a manual edit active at this playhead when it is not on a keyframe.
-    // Clearing this override here makes the camera snap back to the interpolated keyframes on pointer-up.
     setLiveEditTime(existing ? null : playhead);
   };
   const applyMask = (id: string, blob: Blob) => {
@@ -744,7 +760,7 @@ export default function App() {
       </aside>
       <section className="editor-main">
         <div className="scene-toolbar"><div><span className="eyebrow">SCENE EDITOR</span><strong>Composition</strong></div><div className="toolbar-right"><label className="format-control"><span>FORMAT</span><select className="format-select" value={aspectRatio} onChange={e=>{recordHistory();setAspectRatio(e.target.value);setCameraTransform(v=>({...v,x:0,y:0,z:20,zoom:1,roll:0}));}} aria-label="Composition aspect ratio">{Object.keys(ASPECT_RATIOS).map(r=><option key={r} value={r}>{r} {r==='9:16'?'Portrait':r==='16:9'?'Landscape':r==='1:1'?'Square':r==='4:5'?'Portrait':'Portrait'}</option>)}</select></label><button className="small-icon" title="Full preview" aria-label="Open full preview" onClick={()=>{const el=document.querySelector(".viewport") as HTMLElement|null;if(!el)return;const request=el.requestFullscreen||((el as any).webkitRequestFullscreen);if(request)request.call(el);else alert("Full-screen preview is not supported by this browser.");}}><Maximize2 size={15}/></button></div></div>
-        <Viewport aspectRatio={aspectRatio} layers={animatedLayers} selectedId={selectedId} onSelect={id=>{setSelectedId(id);setTab('properties');}} onMove={(id,x,y)=>updateLayer(id,{x,y})} onMoveEnd={commitCurrentKeyframe} onCameraZoom={zoom=>updateCamera({zoom})} onCameraPan={patch=>updateCamera(patch)} onCameraReset={()=>{setCameraTransform({x:0,y:0,zoom:1,z:20,roll:0});setLiveEditTime(null);}} cameraTransform={animatedCamera} playing={playing} playhead={playhead} windStrength={windStrength} windDirection={windDirection} atmosphere={atmosphere} environment={environment}/>
+        <Viewport aspectRatio={aspectRatio} layers={animatedLayers} selectedId={selectedId} onSelect={id=>{setSelectedId(id);setTab('properties');}} onMove={(id,x,y)=>updateLayer(id,{x,y})} onMoveEnd={commitCurrentKeyframe} onCameraZoom={zoom=>updateCamera({zoom})} onCameraPan={patch=>updateCamera(patch)} onCameraReset={()=>{const reset={x:0,y:0,zoom:1,z:20,roll:0,yaw:0,pitch:0};cameraTransformRef.current=reset;setCameraTransform(reset);setLiveEditTime(null);}} cameraTransform={animatedCamera} playing={playing} playhead={playhead} windStrength={windStrength} windDirection={windDirection} atmosphere={atmosphere} environment={environment}/>
         <div className="six-layer-dock" aria-label="Six individual scene layer upload slots">
           <div className="six-layer-heading"><b>SCENE DEPTH</b><span>Upload one asset into each layer</span></div>
           <div className="six-layer-buttons">
@@ -839,15 +855,15 @@ export default function App() {
             </div>
           </div>
           <div className="camera-control-card"><div><Camera size={14}/> Camera framing</div>
-            <label>Horizontal <b>{animatedCamera.x.toFixed(2)}</b><input type="range" min="-6" max="6" step=".02" value={animatedCamera.x} onPointerDown={recordHistory} onChange={e=>updateCamera({x:+e.target.value})} onPointerUp={commitCurrentKeyframe} onPointerCancel={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
-            <label>Vertical <b>{animatedCamera.y.toFixed(2)}</b><input type="range" min="-6" max="6" step=".02" value={animatedCamera.y} onPointerDown={recordHistory} onChange={e=>updateCamera({y:+e.target.value})} onPointerUp={commitCurrentKeyframe} onPointerCancel={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
-            <label>Camera zoom <b>{animatedCamera.zoom.toFixed(2)}×</b><input type="range" min=".25" max="5" step=".01" value={animatedCamera.zoom} onPointerDown={recordHistory} onChange={e=>updateCamera({zoom:+e.target.value})} onPointerUp={commitCurrentKeyframe} onPointerCancel={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
-             <label>Camera distance <b>{(animatedCamera.z??20).toFixed(1)}</b><input type="range" min="4" max="60" step=".1" value={animatedCamera.z??20} onPointerDown={recordHistory} onChange={e=>updateCamera({z:+e.target.value})} onPointerUp={commitCurrentKeyframe} onPointerCancel={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
-             <label>Camera pan X <b>{animatedCamera.x.toFixed(2)}</b><input type="range" min="-12" max="12" step=".02" value={animatedCamera.x} onPointerDown={recordHistory} onChange={e=>updateCamera({x:+e.target.value})} onPointerUp={commitCurrentKeyframe} onPointerCancel={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
-             <label>Camera pan Y <b>{animatedCamera.y.toFixed(2)}</b><input type="range" min="-12" max="12" step=".02" value={animatedCamera.y} onPointerDown={recordHistory} onChange={e=>updateCamera({y:+e.target.value})} onPointerUp={commitCurrentKeyframe} onPointerCancel={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
-             <label>Camera orbit · horizontal <b>{(animatedCamera.yaw??0).toFixed(0)}°</b><input type="range" min="-45" max="45" step=".5" value={animatedCamera.yaw??0} onPointerDown={recordHistory} onChange={e=>updateCamera({yaw:+e.target.value})} onPointerUp={commitCurrentKeyframe} onPointerCancel={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
-             <label>Camera orbit · vertical <b>{(animatedCamera.pitch??0).toFixed(0)}°</b><input type="range" min="-35" max="35" step=".5" value={animatedCamera.pitch??0} onPointerDown={recordHistory} onChange={e=>updateCamera({pitch:+e.target.value})} onPointerUp={commitCurrentKeyframe} onPointerCancel={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
-             <label>Camera roll <b>{(animatedCamera.roll??0).toFixed(0)}°</b><input type="range" min="-180" max="180" step="1" value={animatedCamera.roll??0} onPointerDown={recordHistory} onChange={e=>updateCamera({roll:+e.target.value})} onPointerUp={commitCurrentKeyframe} onPointerCancel={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
+            <label>Horizontal <b>{animatedCamera.x.toFixed(2)}</b><input type="range" min="-6" max="6" step=".02" value={animatedCamera.x} onPointerDown={beginCameraEdit} onChange={e=>updateCamera({x:+e.target.value})} onPointerUp={commitCurrentKeyframe} onPointerCancel={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
+            <label>Vertical <b>{animatedCamera.y.toFixed(2)}</b><input type="range" min="-6" max="6" step=".02" value={animatedCamera.y} onPointerDown={beginCameraEdit} onChange={e=>updateCamera({y:+e.target.value})} onPointerUp={commitCurrentKeyframe} onPointerCancel={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
+            <label>Camera zoom <b>{animatedCamera.zoom.toFixed(2)}×</b><input type="range" min=".25" max="5" step=".01" value={animatedCamera.zoom} onPointerDown={beginCameraEdit} onChange={e=>updateCamera({zoom:+e.target.value})} onPointerUp={commitCurrentKeyframe} onPointerCancel={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
+             <label>Camera distance <b>{(animatedCamera.z??20).toFixed(1)}</b><input type="range" min="4" max="60" step=".1" value={animatedCamera.z??20} onPointerDown={beginCameraEdit} onChange={e=>updateCamera({z:+e.target.value})} onPointerUp={commitCurrentKeyframe} onPointerCancel={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
+             <label>Camera pan X <b>{animatedCamera.x.toFixed(2)}</b><input type="range" min="-12" max="12" step=".02" value={animatedCamera.x} onPointerDown={beginCameraEdit} onChange={e=>updateCamera({x:+e.target.value})} onPointerUp={commitCurrentKeyframe} onPointerCancel={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
+             <label>Camera pan Y <b>{animatedCamera.y.toFixed(2)}</b><input type="range" min="-12" max="12" step=".02" value={animatedCamera.y} onPointerDown={beginCameraEdit} onChange={e=>updateCamera({y:+e.target.value})} onPointerUp={commitCurrentKeyframe} onPointerCancel={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
+             <label>Camera orbit · horizontal <b>{(animatedCamera.yaw??0).toFixed(0)}°</b><input type="range" min="-45" max="45" step=".5" value={animatedCamera.yaw??0} onPointerDown={beginCameraEdit} onChange={e=>updateCamera({yaw:+e.target.value})} onPointerUp={commitCurrentKeyframe} onPointerCancel={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
+             <label>Camera orbit · vertical <b>{(animatedCamera.pitch??0).toFixed(0)}°</b><input type="range" min="-35" max="35" step=".5" value={animatedCamera.pitch??0} onPointerDown={beginCameraEdit} onChange={e=>updateCamera({pitch:+e.target.value})} onPointerUp={commitCurrentKeyframe} onPointerCancel={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
+             <label>Camera roll <b>{(animatedCamera.roll??0).toFixed(0)}°</b><input type="range" min="-180" max="180" step="1" value={animatedCamera.roll??0} onPointerDown={beginCameraEdit} onChange={e=>updateCamera({roll:+e.target.value})} onPointerUp={commitCurrentKeyframe} onPointerCancel={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
              <button type="button" className="wide-secondary" onClick={()=>{recordHistory();setCameraTransform({x:0,y:0,zoom:1,z:20,roll:0,yaw:0,pitch:0});setLiveEditTime(null);commitCurrentKeyframe();}}>Reset camera framing</button></div>
           <button className="wide-secondary mask-open-btn" onClick={()=>setMaskLayerId(selected.id)}><Scan size={14}/> Open manual mask editor</button><button className="wide-secondary" onClick={()=>duplicateLayer(selected)}><Copy size={14}/> Duplicate layer</button>
         </> : <div className="layer-empty"><SlidersHorizontal size={22}/><b>No layer selected</b><span>Select a layer to edit its transforms.</span></div>}</div>}
