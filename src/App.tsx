@@ -61,10 +61,15 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
     const fit=Math.max(rotatedHeight,rotatedWidth/Math.max(.01,camera.aspect))*1.16/(2*Math.tan(verticalFov/2));
     fitDistance.current=fit;
     const distance=fit*((framing.z??20)/20)/Math.max(.1,framing.zoom);
-    // Keep the camera axis square to the composition; pan by moving its look target.
-    camera.position.set(0,0,Math.max(.5,distance));
+    // Orbit around the composition target. Yaw rotates horizontally; pitch tilts vertically.
+    const yaw=THREE.MathUtils.degToRad(framing.yaw??0);
+    const pitch=THREE.MathUtils.degToRad(THREE.MathUtils.clamp(framing.pitch??0,-80,80));
+    const orbitRadius=Math.max(.5,distance);
+    const horizontalRadius=orbitRadius*Math.cos(pitch);
+    const target=new THREE.Vector3(framing.x,framing.y,0);
+    camera.position.set(framing.x+Math.sin(yaw)*horizontalRadius,framing.y+Math.sin(pitch)*orbitRadius,orbitRadius*Math.cos(yaw)*Math.cos(pitch));
     camera.up.set(0,1,0);
-    camera.lookAt(framing.x,framing.y,0);
+    camera.lookAt(target);
     camera.rotateZ(roll);
     camera.updateProjectionMatrix();
   };
@@ -419,7 +424,7 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
       const camera=cameraRef.current;
       if(!camera)return;
       const rect=host.current.getBoundingClientRect();
-      const worldPerPixel=(2*Math.max(.5,camera.position.z)*Math.tan(THREE.MathUtils.degToRad(camera.fov/2)))/Math.max(1,rect.height);
+      const worldPerPixel=(2*Math.max(.5,camera.position.length())*Math.tan(THREE.MathUtils.degToRad(camera.fov/2)))/Math.max(1,rect.height);
       const dx=e.clientX-d.startClientX, dy=e.clientY-d.startClientY;
       d.moved=true;
       onCameraPan({x:d.originX-dx*worldPerPixel,y:d.originY+dy*worldPerPixel});
@@ -451,6 +456,7 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
 export default function App() {
   const [layers, setLayers] = useState<Layer[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [motionCopyTargets,setMotionCopyTargets] = useState<string[]>([]);
   const [tab, setTab] = useState<'layers'|'properties'|'environment'>('layers');
   const [projectName, setProjectName] = useState('Untitled Scene');
   const [maskLayerId, setMaskLayerId] = useState<string | null>(null);
@@ -584,6 +590,13 @@ export default function App() {
     setLayers(prev => prev.map(layer => layer.id === id ? {...layer,...(evaluated ?? {}),...patch} : layer));
   };
   const updateSelected = (patch: Partial<Layer>) => { if (selectedId) updateLayer(selectedId,patch); };
+  const copySelectedMotionToLayers = () => {
+    if(!selected || motionCopyTargets.length===0)return;
+    recordHistory();
+    const motion={motionX:selected.motionX??0,motionY:selected.motionY??0,motionRotation:selected.motionRotation??0,motionSpeed:selected.motionSpeed??1};
+    setLayers(prev=>prev.map(layer=>motionCopyTargets.includes(layer.id)?{...layer,...motion}:layer));
+    setMotionCopyTargets([]);
+  };
   const setSelectedDepth = (z:number) => { if(!selectedId)return; recordHistory(); const next=layers.map(layer=>layer.id===selectedId?{...layer,z}:layer); setLayers(next); const existing=keyframes.find(frame=>Math.abs(frame.time-playhead)<=0.015); if(existing){const frame=makeFrame(existing.time,next,cameraTransform);frame.id=existing.id;writeKeyframe(frame);} };
   const updateCamera = (patch:Partial<CameraTransform>) => {
     // One undo snapshot is recorded at slider pointer-down, not on every slider tick.
@@ -813,6 +826,17 @@ export default function App() {
             <label>Gentle rotation <b>{(selected.motionRotation??0).toFixed(1)}°</b><input type="range" min="0" max="12" step=".1" value={selected.motionRotation??0} onChange={e=>updateSelected({motionRotation:+e.target.value})}/></label>
             <label>Motion speed <b>{(selected.motionSpeed??1).toFixed(1)}×</b><input type="range" min=".2" max="3" step=".1" value={selected.motionSpeed??1} onChange={e=>updateSelected({motionSpeed:+e.target.value})}/></label>
             <button type="button" className="wide-secondary" onClick={()=>updateSelected({motionX:0,motionY:0,motionRotation:0,motionSpeed:1})}>Reset layer motion</button>
+            <div className="motion-copy-box">
+              <b>Copy this layer's motion to</b>
+              <small>Select destination layers. Their current motion settings will be replaced.</small>
+              <div className="motion-copy-targets">
+                {layers.filter(layer=>layer.id!==selected.id).map(layer=><label key={layer.id}>
+                  <input type="checkbox" checked={motionCopyTargets.includes(layer.id)} onChange={e=>setMotionCopyTargets(prev=>e.target.checked?[...prev,layer.id]:prev.filter(id=>id!==layer.id))}/>
+                  <span>{layer.name}</span>
+                </label>)}
+              </div>
+              <button type="button" className="wide-secondary" disabled={!motionCopyTargets.length} onClick={copySelectedMotionToLayers}>Copy motion to {motionCopyTargets.length||'selected'} layer{motionCopyTargets.length===1?'':'s'}</button>
+            </div>
           </div>
           <div className="camera-control-card"><div><Camera size={14}/> Camera framing</div>
             <label>Horizontal <b>{animatedCamera.x.toFixed(2)}</b><input type="range" min="-6" max="6" step=".02" value={animatedCamera.x} onPointerDown={recordHistory} onChange={e=>updateCamera({x:+e.target.value})} onPointerUp={commitCurrentKeyframe} onPointerCancel={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
