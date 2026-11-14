@@ -343,7 +343,7 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
           texture.generateMipmaps = true;
           texture.minFilter = THREE.LinearMipmapLinearFilter;
           texture.magFilter = THREE.LinearFilter;
-          texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+          texture.anisotropy = rendererRef.current?.capabilities.getMaxAnisotropy() ?? 1;
           material.map = texture;
           material.needsUpdate = true;
           const image = texture.image as HTMLImageElement;
