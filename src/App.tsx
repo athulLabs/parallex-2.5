@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import MaskEditor from './MaskEditor';
+import Library from './Library';
 import {
   Upload, Layers3, Image as ImageIcon, Move3D, SlidersHorizontal, Eye, EyeOff,
   Lock, Unlock, Trash2, Copy, Plus, Play, Undo2, Redo2, Maximize2, Download, FolderOpen,
@@ -483,6 +484,7 @@ export default function App() {
   const [hydrated,setHydrated]=useState(false);
   const [autosaveEnabled,setAutosaveEnabled]=useState(true);
   const [settingsOpen,setSettingsOpen]=useState(false);
+  const [libraryOpen,setLibraryOpen]=useState(false);
   const [historyVersion,setHistoryVersion]=useState(0);
   const undoStack=useRef<EditorSnapshot[]>([]);
   const redoStack=useRef<EditorSnapshot[]>([]);
@@ -662,6 +664,21 @@ export default function App() {
     const copy={...layer,id:uid(),name:layer.name+' copy',z:layer.z+0.08};
     setLayers(prev=>[...prev,copy]); setSelectedId(copy.id);
   };
+  const captureLibraryScene = async () => {
+    const imageLayers = await Promise.all(layers.map(async layer => {
+      const response = await fetch(layer.url);
+      const blob = await response.blob();
+      const dataUrl = await new Promise<string>((resolve,reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(blob);
+      });
+      const { url, ...metadata } = layer;
+      return { ...metadata, dataUrl };
+    }));
+    return { format:'PARALLAX_2_5', version:3, projectName, duration, keyframes, cameraTransform, aspectRatio, layers:imageLayers };
+  };
   const saveProject = async () => {
     try {
       const imageLayers = await Promise.all(layers.map(async layer => {
@@ -760,7 +777,7 @@ export default function App() {
     <header className="topbar">
       <div className="brand"><div className="brand-mark">P</div><div><b>PARALLAX</b><small>2.5 CINEMATIC STUDIO</small></div></div>
       <div className="project-title"><input value={projectName} onChange={e=>setProjectName(e.target.value)} aria-label="Project name"/><span className="saved-dot"/><small>SESSION</small></div>
-      <div className="top-actions"><button className="icon-btn" title="Open PARALLAX project" onClick={()=>projectFileRef.current?.click()}><FolderOpen size={17}/></button><button className="icon-btn" title="Save project JSON" onClick={saveProject}><Download size={17}/></button><button className="icon-btn mobile-hidden" title="Undo" aria-label="Undo" disabled={undoStack.current.length===0} onClick={undo}><Undo2 size={17}/></button><button className="icon-btn mobile-hidden" title="Redo" aria-label="Redo" disabled={redoStack.current.length===0} onClick={redo}><Redo2 size={17}/></button><button className="export-btn" onClick={exportVideo} title="Render the keyframed scene as a video"><Film size={15}/> Export Video</button></div>
+      <div className="top-actions"><button className="icon-btn" title="Open PARALLAX project" onClick={()=>projectFileRef.current?.click()}><FolderOpen size={17}/></button><button className="icon-btn" title="Open content library" aria-label="Open content library" onClick={()=>setLibraryOpen(true)}><Layers3 size={17}/></button><button className="icon-btn" title="Save project JSON" onClick={saveProject}><Download size={17}/></button><button className="icon-btn mobile-hidden" title="Undo" aria-label="Undo" disabled={undoStack.current.length===0} onClick={undo}><Undo2 size={17}/></button><button className="icon-btn mobile-hidden" title="Redo" aria-label="Redo" disabled={redoStack.current.length===0} onClick={redo}><Redo2 size={17}/></button><button className="export-btn" onClick={exportVideo} title="Render the keyframed scene as a video"><Film size={15}/> Export Video</button></div>
     </header>
     <div className="workspace">
       <aside className="left-rail">
@@ -885,6 +902,7 @@ export default function App() {
     </div>
     {settingsOpen && <div className="mask-overlay" role="dialog" aria-modal="true" aria-label="PARALLAX settings"><div className="mask-dialog settings-dialog"><div className="mask-header"><div><span className="eyebrow">WORKSPACE</span><strong>Settings</strong></div><button className="mask-close" onClick={()=>setSettingsOpen(false)} aria-label="Close settings">×</button></div><label className="environment-check"><input type="checkbox" checked={autosaveEnabled} onChange={e=>setAutosaveEnabled(e.target.checked)}/> Automatically save recovery copy on this device</label><p className="environment-note">Your scene and imported artwork are saved privately in this browser using IndexedDB. Autosave helps restore your work if the tab reloads.</p><button className="wide-secondary" onClick={()=>{void clearRecovery().then(()=>alert("Local recovery copy cleared." )).catch(()=>alert("Could not clear local recovery copy."));}}>Clear local recovery copy</button><div className="mask-footer"><span>PARALLAX 2.5 · Local workspace</span><button className="mask-apply" onClick={()=>setSettingsOpen(false)}>Done</button></div></div></div>}
     {maskLayerId && layers.find(layer=>layer.id===maskLayerId) && <MaskEditor src={layers.find(layer=>layer.id===maskLayerId)!.url} name={layers.find(layer=>layer.id===maskLayerId)!.name} onApply={blob=>applyMask(maskLayerId,blob)} onClose={()=>setMaskLayerId(null)}/>}
+    <Library open={libraryOpen} onClose={()=>setLibraryOpen(false)} captureScene={captureLibraryScene} onOpenScene={(payload)=>{const file=new File([JSON.stringify(payload)],(payload.projectName||'saved-scene')+'.parallax.json',{type:'application/json'});void loadProject(file);setLibraryOpen(false);}}/>
     <input ref={fileRef} type="file" accept="image/*,video/mp4,video/webm,video/quicktime" multiple hidden onChange={e=>{importFiles(e.target.files);e.target.value='';}}/><input ref={slotFileRef} type="file" accept="image/*,video/mp4,video/webm,video/quicktime" hidden onChange={e=>{const file=e.target.files?.[0];if(file&&pendingSlot!==null)uploadToSlot(pendingSlot,file);setPendingSlot(null);e.target.value='';}}/><input ref={projectFileRef} type="file" accept=".json,.parallax.json,application/json" hidden onChange={e=>{const file=e.target.files?.[0];if(file)void loadProject(file);e.target.value='';}}/>
   </main>;
 }
