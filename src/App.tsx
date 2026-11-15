@@ -463,7 +463,8 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
 export default function App() {
   const [layers, setLayers] = useState<Layer[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [motionCopyTargets,setMotionCopyTargets] = useState<string[]>([]);
+  const [motionClipboard,setMotionClipboard] = useState<{sourceId:string;sourceName:string;points:{time:number;transform:Transform}[]}|null>(null);
+  const [motionStatus,setMotionStatus] = useState('');
   const [tab, setTab] = useState<'layers'|'properties'|'environment'>('layers');
   const [projectName, setProjectName] = useState('Untitled Scene');
   const [maskLayerId, setMaskLayerId] = useState<string | null>(null);
@@ -613,23 +614,47 @@ export default function App() {
     setLayers(prev => prev.map(layer => layer.id === id ? {...layer,...(evaluated ?? {}),...patch} : layer));
   };
   const updateSelected = (patch: Partial<Layer>) => { if (selectedId) updateLayer(selectedId,patch); };
-  const copySelectedMotionToLayers = () => {
-    if(!selected || motionCopyTargets.length===0)return;
+  const evaluateLayerTransformAt = (layerId:string,time:number):Transform|null => {
+    const points=[...keyframes].filter(frame=>frame.layers[layerId]).sort((a,b)=>a.time-b.time);
+    if(!points.length)return null;
+    const before=[...points].reverse().find(frame=>frame.time<=time)??points[0];
+    const after=points.find(frame=>frame.time>=time)??points[points.length-1];
+    const a=before.layers[layerId],b=after.layers[layerId],span=after.time-before.time;
+    const raw=span<=0?0:Math.max(0,Math.min(1,(time-before.time)/span)),t=raw*raw*(3-2*raw);
+    const rotationDelta=THREE.MathUtils.euclideanModulo(b.rotation-a.rotation+180,360)-180;
+    return {x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t,z:a.z+(b.z-a.z)*t,scale:a.scale+(b.scale-a.scale)*t,rotation:a.rotation+rotationDelta*t,opacity:a.opacity+(b.opacity-a.opacity)*t};
+  };
+  const copySelectedMotion = () => {
+    if(!selected)return;
+    const points=[...keyframes].filter(frame=>frame.layers[selected.id]).sort((a,b)=>a.time-b.time).map(frame=>({time:frame.time,transform:{...frame.layers[selected.id]}}));
+    if(points.length<2){setMotionStatus('Add at least two keyframes for this layer first.');return;}
+    setMotionClipboard({sourceId:selected.id,sourceName:selected.name,points});
+    setMotionStatus(`Copied ${points.length} timeline keyframes.`);
+  };
+  const pasteMotionToLayers = (targetIds:string[]) => {
+    if(!motionClipboard||!targetIds.length)return;
+    const points=motionClipboard.points,base=points[0].transform;
+    const targets=targetIds.filter(id=>id!==motionClipboard.sourceId&&layers.some(layer=>layer.id===id));
+    if(!targets.length){setMotionStatus('Select a different destination layer.');return;}
     recordHistory();
-    // Copy the source layer's visual treatment and per-layer motion, while
-    // preserving each destination's identity, media, position and depth.
-    const effects={
-      scale:selected.scale,
-      rotation:selected.rotation,
-      opacity:selected.opacity,
-      motionX:selected.motionX??0,
-      motionY:selected.motionY??0,
-      motionRotation:selected.motionRotation??0,
-      motionSpeed:selected.motionSpeed??1
-    };
-    const targets=new Set(motionCopyTargets);
-    setLayers(prev=>prev.map(layer=>targets.has(layer.id)?{...layer,...effects}:layer));
-    setMotionCopyTargets([]);
+    const next=[...keyframes];
+    for(const id of targets){
+      const layer=layers.find(item=>item.id===id)!;
+      const dest=evaluateLayerTransformAt(id,points[0].time)??{x:layer.x,y:layer.y,z:layer.z,scale:layer.scale,rotation:layer.rotation,opacity:layer.opacity};
+      for(const point of points){
+        const src=point.transform,rot=THREE.MathUtils.euclideanModulo(src.rotation-base.rotation+180,360)-180;
+        const value:Transform={x:dest.x+src.x-base.x,y:dest.y+src.y-base.y,z:dest.z+src.z-base.z,scale:Math.max(.01,dest.scale*(src.scale/Math.max(.01,base.scale))),rotation:dest.rotation+rot,opacity:THREE.MathUtils.clamp(dest.opacity+src.opacity-base.opacity,0,100)};
+        const index=next.findIndex(frame=>Math.abs(frame.time-point.time)<=.015);
+        if(index>=0)next[index]={...next[index],layers:{...next[index].layers,[id]:value}};
+        else {
+          const scene=layers.map(item=>({...item,...(evaluateLayerTransformAt(item.id,point.time)??{})}));
+          const frame=makeFrame(point.time,scene,animatedCamera);
+          next.push({...frame,layers:{...frame.layers,[id]:value}});
+        }
+      }
+    }
+    setKeyframes(next.sort((a,b)=>a.time-b.time));
+    setMotionStatus(`Pasted ${points.length} keyframes to ${targets.length} layer(s). Starting positions preserved.`);
   };
   const setSelectedDepth = (z:number) => { if(!selectedId)return; recordHistory(); const next=layers.map(layer=>layer.id===selectedId?{...layer,z}:layer); setLayers(next); const existing=keyframes.find(frame=>Math.abs(frame.time-playhead)<=0.015); if(existing){const frame=makeFrame(existing.time,next,cameraTransform);frame.id=existing.id;writeKeyframe(frame);} };
   const beginCameraEdit = () => {
@@ -884,24 +909,13 @@ export default function App() {
             <label>Motion speed <b>{(selected.motionSpeed??1).toFixed(1)}×</b><input type="range" min=".2" max="3" step=".1" value={selected.motionSpeed??1} onChange={e=>updateSelected({motionSpeed:+e.target.value})}/></label>
             <button type="button" className="wide-secondary" onClick={()=>updateSelected({motionX:0,motionY:0,motionRotation:0,motionSpeed:1})}>Reset layer motion</button>
             <div className="motion-copy-box">
-              <b>Copy this layer's effects to</b>
-              <small>Select destination layers. Scale, rotation, opacity and ambient motion will be replaced. Position, depth and media stay unchanged.</small>
-              <div className="motion-copy-targets">
-                {layers.filter(layer=>layer.id!==selected.id).map(layer=><label key={layer.id}>
-                  <input type="checkbox" checked={motionCopyTargets.includes(layer.id)} onChange={e=>{
-                    if(e.target.checked){
-                      // Apply immediately when a destination is ticked; do not rely
-                      // on a separate button that may be below the mobile viewport.
-                      recordHistory();
-                      const motion={motionX:selected.motionX??0,motionY:selected.motionY??0,motionRotation:selected.motionRotation??0,motionSpeed:selected.motionSpeed??1};
-                      setLayers(prev=>prev.map(item=>item.id===layer.id?{...item,...motion}:item));
-                      setMotionCopyTargets(prev=>prev.includes(layer.id)?prev:[...prev,layer.id]);
-                    }else setMotionCopyTargets(prev=>prev.filter(id=>id!==layer.id));
-                  }}/>
-                  <span>{layer.name}</span>
-                </label>)}
-              </div>
-              <button type="button" className="wide-secondary" disabled={!motionCopyTargets.length} onClick={copySelectedMotionToLayers}>Copy effects to {motionCopyTargets.length||'selected'} layer{motionCopyTargets.length===1?'':'s'}</button>
+              <b>Motion transfer</b>
+              <small>Copy the selected layer's timeline animation, select another layer, then paste. Its image and starting position are preserved.</small>
+              <button type="button" className="wide-secondary" onClick={copySelectedMotion}>Copy motion · {keyframes.filter(frame=>frame.layers[selected.id]).length} keyframes</button>
+              <button type="button" className="wide-secondary" disabled={!motionClipboard||motionClipboard.sourceId===selected.id} onClick={()=>pasteMotionToLayers([selected.id])}>Paste motion to this layer</button>
+              <button type="button" className="wide-secondary" disabled={!motionClipboard||layers.every(layer=>layer.id===motionClipboard.sourceId)} onClick={()=>pasteMotionToLayers(layers.filter(layer=>layer.id!==motionClipboard.sourceId).map(layer=>layer.id))}>Paste to all other layers</button>
+              {motionClipboard&&<small className="motion-clipboard-state">Clipboard: {motionClipboard.sourceName} · {motionClipboard.points.length} keyframes</small>}
+              {motionStatus&&<small className="motion-clipboard-state" role="status">{motionStatus}</small>}
             </div>
           </div>
           <div className="camera-control-card"><div><Camera size={14}/> Camera framing</div>
