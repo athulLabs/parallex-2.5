@@ -616,8 +616,19 @@ export default function App() {
   const copySelectedMotionToLayers = () => {
     if(!selected || motionCopyTargets.length===0)return;
     recordHistory();
-    const motion={motionX:selected.motionX??0,motionY:selected.motionY??0,motionRotation:selected.motionRotation??0,motionSpeed:selected.motionSpeed??1};
-    setLayers(prev=>prev.map(layer=>motionCopyTargets.includes(layer.id)?{...layer,...motion}:layer));
+    // Copy the source layer's visual treatment and per-layer motion, while
+    // preserving each destination's identity, media, position and depth.
+    const effects={
+      scale:selected.scale,
+      rotation:selected.rotation,
+      opacity:selected.opacity,
+      motionX:selected.motionX??0,
+      motionY:selected.motionY??0,
+      motionRotation:selected.motionRotation??0,
+      motionSpeed:selected.motionSpeed??1
+    };
+    const targets=new Set(motionCopyTargets);
+    setLayers(prev=>prev.map(layer=>targets.has(layer.id)?{...layer,...effects}:layer));
     setMotionCopyTargets([]);
   };
   const setSelectedDepth = (z:number) => { if(!selectedId)return; recordHistory(); const next=layers.map(layer=>layer.id===selectedId?{...layer,z}:layer); setLayers(next); const existing=keyframes.find(frame=>Math.abs(frame.time-playhead)<=0.015); if(existing){const frame=makeFrame(existing.time,next,cameraTransform);frame.id=existing.id;writeKeyframe(frame);} };
@@ -873,15 +884,15 @@ export default function App() {
             <label>Motion speed <b>{(selected.motionSpeed??1).toFixed(1)}×</b><input type="range" min=".2" max="3" step=".1" value={selected.motionSpeed??1} onChange={e=>updateSelected({motionSpeed:+e.target.value})}/></label>
             <button type="button" className="wide-secondary" onClick={()=>updateSelected({motionX:0,motionY:0,motionRotation:0,motionSpeed:1})}>Reset layer motion</button>
             <div className="motion-copy-box">
-              <b>Copy this layer's motion to</b>
-              <small>Select destination layers. Their current motion settings will be replaced.</small>
+              <b>Copy this layer's effects to</b>
+              <small>Select destination layers. Scale, rotation, opacity and ambient motion will be replaced. Position, depth and media stay unchanged.</small>
               <div className="motion-copy-targets">
                 {layers.filter(layer=>layer.id!==selected.id).map(layer=><label key={layer.id}>
                   <input type="checkbox" checked={motionCopyTargets.includes(layer.id)} onChange={e=>setMotionCopyTargets(prev=>e.target.checked?[...prev,layer.id]:prev.filter(id=>id!==layer.id))}/>
                   <span>{layer.name}</span>
                 </label>)}
               </div>
-              <button type="button" className="wide-secondary" disabled={!motionCopyTargets.length} onClick={copySelectedMotionToLayers}>Copy motion to {motionCopyTargets.length||'selected'} layer{motionCopyTargets.length===1?'':'s'}</button>
+              <button type="button" className="wide-secondary" disabled={!motionCopyTargets.length} onClick={copySelectedMotionToLayers}>Copy effects to {motionCopyTargets.length||'selected'} layer{motionCopyTargets.length===1?'':'s'}</button>
             </div>
           </div>
           <div className="camera-control-card"><div><Camera size={14}/> Camera framing</div>
