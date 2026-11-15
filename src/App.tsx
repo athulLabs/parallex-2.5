@@ -571,8 +571,8 @@ export default function App() {
     const pitch=THREE.MathUtils.degToRad(THREE.MathUtils.clamp(animatedCamera.pitch??0,-80,80));
     const cosYaw=Math.max(0.15,Math.cos(yaw));
     return {
-      x:animatedCamera.x + z*Math.tan(yaw),
-      y:animatedCamera.y - z*Math.tan(pitch)/cosYaw
+      x:animatedCamera.x - z*Math.tan(yaw),
+      y:animatedCamera.y + z*Math.tan(pitch)/cosYaw
     };
   };
 
