@@ -888,7 +888,16 @@ export default function App() {
               <small>Select destination layers. Scale, rotation, opacity and ambient motion will be replaced. Position, depth and media stay unchanged.</small>
               <div className="motion-copy-targets">
                 {layers.filter(layer=>layer.id!==selected.id).map(layer=><label key={layer.id}>
-                  <input type="checkbox" checked={motionCopyTargets.includes(layer.id)} onChange={e=>setMotionCopyTargets(prev=>e.target.checked?[...prev,layer.id]:prev.filter(id=>id!==layer.id))}/>
+                  <input type="checkbox" checked={motionCopyTargets.includes(layer.id)} onChange={e=>{
+                    if(e.target.checked){
+                      // Apply immediately when a destination is ticked; do not rely
+                      // on a separate button that may be below the mobile viewport.
+                      recordHistory();
+                      const motion={motionX:selected.motionX??0,motionY:selected.motionY??0,motionRotation:selected.motionRotation??0,motionSpeed:selected.motionSpeed??1};
+                      setLayers(prev=>prev.map(item=>item.id===layer.id?{...item,...motion}:item));
+                      setMotionCopyTargets(prev=>prev.includes(layer.id)?prev:[...prev,layer.id]);
+                    }else setMotionCopyTargets(prev=>prev.filter(id=>id!==layer.id));
+                  }}/>
                   <span>{layer.name}</span>
                 </label>)}
               </div>
