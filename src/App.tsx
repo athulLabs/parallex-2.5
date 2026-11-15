@@ -563,12 +563,25 @@ export default function App() {
   useEffect(()=>{ if(tab==='properties') document.querySelector('.properties-panel')?.scrollTo({top:0,behavior:'smooth'}); },[tab,selectedId]);
   useEffect(()=>{ if(!playing)return; playbackStart.current=playhead; let raf=0,last=0,elapsed=0; const tick=(now:number)=>{if(!last)last=now;elapsed+=Math.min(.1,(now-last)/1000);last=now;const next=Math.min(duration,playbackStart.current+elapsed);setPlayhead(next);if(next>=duration){setPlaying(false);return;}raf=requestAnimationFrame(tick);};raf=requestAnimationFrame(tick);return()=>cancelAnimationFrame(raf);},[playing,duration]);
 
+  // Place new artwork at the centre of the currently visible composition, on its own Z plane.
+  // The camera looks toward (animatedCamera.x, animatedCamera.y, 0); account for orbit so
+  // the centre-screen ray still intersects the new layer at its actual depth.
+  const getLayerSpawnPosition = (z:number) => {
+    const yaw=THREE.MathUtils.degToRad(animatedCamera.yaw??0);
+    const pitch=THREE.MathUtils.degToRad(THREE.MathUtils.clamp(animatedCamera.pitch??0,-80,80));
+    const cosYaw=Math.max(0.15,Math.cos(yaw));
+    return {
+      x:animatedCamera.x + z*Math.tan(yaw),
+      y:animatedCamera.y - z*Math.tan(pitch)/cosYaw
+    };
+  };
+
   const importFiles = (files: FileList | null) => {
     if(files?.length)recordHistory();
     if (!files) return;
     const additions: Layer[] = Array.from(files).filter(file => file.type.startsWith('image/') || file.type.startsWith('video/')).map(file => ({
       id: uid(), name: (() => { const base=file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g,' ').trim(); return /^file[_\s-]*[a-f0-9]{12,}$/i.test(base) ? 'Image ' + (layers.length + 1) : (base || 'Image ' + (layers.length + 1)); })(), fileName: file.name,
-      url: URL.createObjectURL(file), isVideo:file.type.startsWith('video/'), x: 0, y: 0, z: layers.length * 0.02,
+      url: URL.createObjectURL(file), isVideo:file.type.startsWith('video/'), ...getLayerSpawnPosition(layers.length * 0.02), z: layers.length * 0.02,
       scale: 1, rotation: 0, visible: true, locked: false, opacity: 100, width: 0, height: 0,
       motionX: 0, motionY: 0, motionRotation: 0, motionSpeed: 1
     }));
@@ -583,7 +596,7 @@ export default function App() {
     const base=file.name.replace(/\\.[^.]+$/, '').replace(/[_-]+/g,' ').trim();
     const layer:Layer={
       id:uid(),slot,name:base||('Layer '+slot),fileName:file.name,url:URL.createObjectURL(file),
-      isVideo:file.type.startsWith('video/'),x:0,y:0,z:slotDepth,scale:1,rotation:0,
+      isVideo:file.type.startsWith('video/'),...getLayerSpawnPosition(slotDepth),z:slotDepth,scale:1,rotation:0,
       visible:true,locked:false,opacity:100,width:0,height:0,
       motionX:0,motionY:0,motionRotation:0,motionSpeed:1
     };
