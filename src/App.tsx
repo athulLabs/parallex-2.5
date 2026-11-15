@@ -913,7 +913,7 @@ export default function App() {
               <small>Copy the selected layer's timeline animation, select another layer, then paste. Its image and starting position are preserved.</small>
               <button type="button" className="wide-secondary" onClick={copySelectedMotion}>Copy motion · {keyframes.filter(frame=>frame.layers[selected.id]).length} keyframes</button>
               <button type="button" className="wide-secondary" disabled={!motionClipboard||motionClipboard.sourceId===selected.id} onClick={()=>pasteMotionToLayers([selected.id])}>Paste motion to this layer</button>
-              <button type="button" className="wide-secondary" disabled={!motionClipboard||layers.every(layer=>layer.id===motionClipboard.sourceId)} onClick={()=>pasteMotionToLayers(layers.filter(layer=>layer.id!==motionClipboard.sourceId).map(layer=>layer.id))}>Paste to all other layers</button>
+              <button type="button" className="wide-secondary" disabled={!motionClipboard||layers.every(layer=>layer.id===motionClipboard?.sourceId)} onClick={()=>pasteMotionToLayers(layers.filter(layer=>layer.id!==motionClipboard?.sourceId).map(layer=>layer.id))}>Paste to all other layers</button>
               {motionClipboard&&<small className="motion-clipboard-state">Clipboard: {motionClipboard.sourceName} · {motionClipboard.points.length} keyframes</small>}
               {motionStatus&&<small className="motion-clipboard-state" role="status">{motionStatus}</small>}
             </div>
