@@ -675,7 +675,18 @@ export default function App() {
   // Only update a keyframe when the playhead is already on an existing marker.
   const commitCurrentKeyframe = () => {
     const existing=keyframes.find(frame=>Math.abs(frame.time-playhead)<=0.015);
-    if(existing){const frame=makeFrame(existing.time,layers,cameraTransformRef.current);frame.id=existing.id;writeKeyframe(frame);}
+    if(existing && selectedId){
+      // Commit only the edited layer's transform. A keyframe is a shared
+      // timeline container, but editing one layer must never rewrite the
+      // animation tracks of every other layer.
+      const edited=layers.find(layer=>layer.id===selectedId);
+      if(edited){
+        const transform:Transform={x:edited.x,y:edited.y,z:edited.z,scale:edited.scale,rotation:edited.rotation,opacity:edited.opacity};
+        setKeyframes(prev=>prev.map(frame=>frame.id===existing.id
+          ? {...frame,layers:{...frame.layers,[selectedId]:transform}}
+          : frame));
+      }
+    }
     // Keep a manual edit active at this playhead when it is not on a keyframe.
     setLiveEditTime(existing ? null : playhead);
   };
