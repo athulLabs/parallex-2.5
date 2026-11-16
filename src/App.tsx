@@ -467,7 +467,7 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
   return <div className="viewport" ref={host} onPointerDown={down} onPointerMove={move} onPointerUp={finishPointer} onPointerCancel={finishPointer}>
     {layers.length === 0 && <div className="empty-scene"><div className="empty-icon"><ImageIcon size={26}/></div><strong>Your canvas is empty</strong><span>Import artwork to begin building your 2.5D scene.</span></div>}
     <div className="viewport-badge"><span className="live-dot"/> {aspectRatio} COMPOSITION</div>
-    <button type="button" className="viewport-reset-camera" title="Reset camera position" onClick={onCameraReset}>Reset camera</button>
+    <button type="button" className="viewport-reset-camera" title="Reset camera" aria-label="Reset camera" onClick={onCameraReset}><RotateCcw size={15} aria-hidden="true"/></button>
     <div className="viewport-actions">
       <button title="Zoom in" onClick={() => onCameraZoom(Math.min(2.5,cameraTransform.zoom+0.15))}><ZoomIn size={16}/></button>
       <button title="Zoom out" onClick={() => onCameraZoom(Math.max(.5,cameraTransform.zoom-0.15))}><ZoomOut size={16}/></button>
