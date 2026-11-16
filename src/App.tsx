@@ -74,7 +74,7 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
     const rotatedWidth=boardW*cos+BOARD_H*sin;
     const rotatedHeight=BOARD_H*cos+boardW*sin;
     const verticalFov=THREE.MathUtils.degToRad(camera.fov);
-    const fit=Math.max(rotatedHeight,rotatedWidth/Math.max(.01,camera.aspect))*1.16/(2*Math.tan(verticalFov/2));
+    const fit=Math.max(rotatedHeight,rotatedWidth/Math.max(.01,camera.aspect))*1.04/(2*Math.tan(verticalFov/2));
     fitDistance.current=fit;
     const distance=fit*((framing.z??20)/20)/Math.max(.1,framing.zoom);
     // Orbit around the composition target. Yaw rotates horizontally; pitch tilts vertically.
@@ -168,7 +168,7 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
     const guideLines = new THREE.LineSegments(guideGeo, guideMaterial);
     guideLines.computeLineDistances(); guideLines.renderOrder = 1000; guides.add(guideLines); board.add(guides);
     board.position.set(0,0,-2); camera.add(board);
-    const resizeCompositionFrame = () => { const ratio=boardW/BOARD_H; const fit=Math.min(.9,.9*camera.aspect/ratio); board.scale.setScalar(fit); };
+    const resizeCompositionFrame = () => { const ratio=boardW/BOARD_H; const fit=Math.min(.97,.97*camera.aspect/ratio); board.scale.setScalar(fit); };
     resizeCompositionFrame();
 
     // True 3D surface grid: build connected X/Y grid lines over a rolling terrain mesh.
