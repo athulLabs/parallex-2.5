@@ -77,7 +77,7 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
     // Fit the complete composition inside the *current viewport* in both axes.
     // The extra safety margin prevents edge clipping after mobile resize/orientation changes.
     const safeAspect=Math.max(.01,camera.aspect);
-    const fit=Math.max(rotatedHeight,rotatedWidth/safeAspect)*1.14/(2*Math.tan(verticalFov/2));
+    const fit=Math.max(rotatedHeight,rotatedWidth/safeAspect)*0.94/(2*Math.tan(verticalFov/2));
     fitDistance.current=fit;
     const distance=fit*((framing.z??20)/20)/Math.max(.1,framing.zoom);
     // Orbit around the composition target. Yaw rotates horizontally; pitch tilts vertically.
