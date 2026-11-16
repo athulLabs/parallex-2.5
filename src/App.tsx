@@ -809,7 +809,7 @@ export default function App() {
         codec, width, height, bitrate: 8_000_000, framerate: fps,
         latencyMode: 'quality'
       });
-      if (!support.supported) {
+      if (!support.supported || !support.config) {
         alert('This device does not provide an H.264 video encoder. Try an updated Chrome browser or a device with H.264 hardware encoding.');
         return;
       }
