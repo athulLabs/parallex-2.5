@@ -536,17 +536,17 @@ html, body, #root { width:100%; max-width:100%; overflow-x:hidden; }
 }
 
 
-/* Always-visible camera reset control inside the composition canvas */
+/* Simple, unobtrusive camera reset button */
 .viewport-reset-camera {
   position:absolute; left:12px; bottom:12px; z-index:8;
-  display:flex; align-items:center; justify-content:center; gap:7px;
-  min-height:34px; padding:0 11px;
-  border:1px solid #6952a0; border-radius:8px;
-  background:#171321eF; color:#e2d8ff;
-  font-size:10px; font-weight:700; letter-spacing:.2px;
-  box-shadow:0 3px 12px #0008;
+  min-height:30px; padding:0 10px;
+  border:1px solid #34303f; border-radius:6px;
+  background:#101014cc; color:#c9c3d6;
+  font-size:11px; font-weight:500; letter-spacing:0;
+  box-shadow:none; cursor:pointer;
 }
-.viewport-reset-camera:active { background:#38285d; }
+.viewport-reset-camera:hover { background:#211d2b; color:#fff; border-color:#625477; }
+.viewport-reset-camera:active { background:#302642; }
 @media (max-width:760px) {
-  .viewport-reset-camera { left:7px; bottom:7px; min-height:30px; padding:0 8px; font-size:9px; }
+  .viewport-reset-camera { left:7px; bottom:7px; min-height:28px; padding:0 8px; font-size:10px; }
 }
