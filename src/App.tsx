@@ -74,7 +74,10 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
     const rotatedWidth=boardW*cos+BOARD_H*sin;
     const rotatedHeight=BOARD_H*cos+boardW*sin;
     const verticalFov=THREE.MathUtils.degToRad(camera.fov);
-    const fit=Math.max(rotatedHeight,rotatedWidth/Math.max(.01,camera.aspect))*1.04/(2*Math.tan(verticalFov/2));
+    // Fit the complete composition inside the *current viewport* in both axes.
+    // The extra safety margin prevents edge clipping after mobile resize/orientation changes.
+    const safeAspect=Math.max(.01,camera.aspect);
+    const fit=Math.max(rotatedHeight,rotatedWidth/safeAspect)*1.14/(2*Math.tan(verticalFov/2));
     fitDistance.current=fit;
     const distance=fit*((framing.z??20)/20)/Math.max(.1,framing.zoom);
     // Orbit around the composition target. Yaw rotates horizontally; pitch tilts vertically.
