@@ -17,7 +17,8 @@ type Layer = {
   id: string; name: string; url: string; fileName: string;
   x: number; y: number; z: number; scale: number; rotation: number;
   visible: boolean; locked: boolean; opacity: number; width: number; height: number; isVideo?: boolean;
-  motionX?: number; motionY?: number; motionRotation?: number; motionSpeed?: number; slot?: number;\n  textContent?: string; textFont?: string; textSize?: number; textColor?: string; textBold?: boolean; textItalic?: boolean; textAlign?: 'left'|'center'|'right'; textStroke?: string; textStrokeWidth?: number;
+  motionX?: number; motionY?: number; motionRotation?: number; motionSpeed?: number; slot?: number;
+  textContent?: string; textFont?: string; textSize?: number; textColor?: string; textBold?: boolean; textItalic?: boolean; textAlign?: 'left'|'center'|'right'; textStroke?: string; textStrokeWidth?: number;
 };
 const uid = () => Math.random().toString(36).slice(2, 10);
 const renderTextArtwork = (text:string,font:string,size:number,color:string,bold:boolean,italic:boolean,align:'left'|'center'|'right',stroke:string,strokeWidth:number) => {
