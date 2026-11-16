@@ -522,7 +522,7 @@ html, body, #root { width:100%; max-width:100%; overflow-x:hidden; }
   }
   .viewport {
     position:relative; overflow:hidden !important;
-    contain:layout paint size;
+    contain:layout paint;
   }
   .viewport canvas {
     position:absolute !important; inset:0 !important;
