@@ -17,9 +17,22 @@ type Layer = {
   id: string; name: string; url: string; fileName: string;
   x: number; y: number; z: number; scale: number; rotation: number;
   visible: boolean; locked: boolean; opacity: number; width: number; height: number; isVideo?: boolean;
-  motionX?: number; motionY?: number; motionRotation?: number; motionSpeed?: number; slot?: number;
+  motionX?: number; motionY?: number; motionRotation?: number; motionSpeed?: number; slot?: number;\n  textContent?: string; textFont?: string; textSize?: number; textColor?: string; textBold?: boolean; textItalic?: boolean; textAlign?: 'left'|'center'|'right'; textStroke?: string; textStrokeWidth?: number;
 };
 const uid = () => Math.random().toString(36).slice(2, 10);
+const renderTextArtwork = (text:string,font:string,size:number,color:string,bold:boolean,italic:boolean,align:'left'|'center'|'right',stroke:string,strokeWidth:number) => {
+  const canvas=document.createElement('canvas'); canvas.width=1600; canvas.height=600;
+  const ctx=canvas.getContext('2d')!;
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.textAlign=align; ctx.textBaseline='middle';
+  ctx.font=`${italic?'italic ':''}${bold?'700 ':'400 '}${size*2}px "${font}"`;
+  ctx.lineJoin='round'; ctx.lineWidth=strokeWidth*2;
+  const x=align==='left'?70:align==='right'?1530:800;
+  const lines=text.split('\\n').slice(0,4), lineHeight=size*2.25;
+  const startY=300-((lines.length-1)*lineHeight)/2;
+  lines.forEach((line,index)=>{if(stroke&&strokeWidth>0){ctx.strokeStyle=stroke;ctx.strokeText(line,x,startY+index*lineHeight,1460);}ctx.fillStyle=color;ctx.fillText(line,x,startY+index*lineHeight,1460);});
+  return canvas.toDataURL('image/png');
+};
 const BOARD_H = 7.2;
 const ASPECT_RATIOS:Record<string,number> = {'9:16':9/16,'16:9':16/9,'1:1':1,'4:5':4/5,'3:4':3/4};
 
@@ -579,6 +592,19 @@ export default function App() {
     };
   };
 
+  const addTextLayer = () => {
+    recordHistory();
+    const text='Your Text';
+    const font='Arial', size=96, color='#ffffff';
+    const layer:Layer={id:uid(),name:'Text',fileName:'text-layer.png',url:renderTextArtwork(text,font,size,color,true,false,'center','#000000',0),...getLayerSpawnPosition(layers.length*.02),z:layers.length*.02,scale:1,rotation:0,visible:true,locked:false,opacity:100,width:0,height:0,motionX:0,motionY:0,motionRotation:0,motionSpeed:1,textContent:text,textFont:font,textSize:size,textColor:color,textBold:true,textItalic:false,textAlign:'center',textStroke:'#000000',textStrokeWidth:0};
+    setLayers(prev=>[...prev,layer]);setSelectedId(layer.id);setTab('properties');
+  };
+  const updateTextLayer = (patch:Partial<Layer>) => {
+    if(!selected?.textContent && selected?.textContent!=='')return;
+    const next={...selected,...patch};
+    const url=renderTextArtwork(next.textContent??'Text',next.textFont??'Arial',next.textSize??96,next.textColor??'#ffffff',next.textBold??false,next.textItalic??false,next.textAlign??'center',next.textStroke??'#000000',next.textStrokeWidth??0);
+    updateLayer(selected.id,{...patch,url});
+  };
   const importFiles = (files: FileList | null) => {
     if(files?.length)recordHistory();
     if (!files) return;
@@ -836,7 +862,7 @@ export default function App() {
         <div className="rail-bottom"><button className="rail-item" onClick={()=>setSettingsOpen(true)}><Settings2/><span>Settings</span></button></div>
       </aside>
       <section className="editor-main">
-        <div className="scene-toolbar"><div><span className="eyebrow">SCENE EDITOR</span><strong>Composition</strong></div><div className="toolbar-right"><label className="format-control"><span>FORMAT</span><select className="format-select" value={aspectRatio} onChange={e=>{recordHistory();setAspectRatio(e.target.value);setCameraTransform(v=>({...v,x:0,y:0,z:20,zoom:1,roll:0}));}} aria-label="Composition aspect ratio">{Object.keys(ASPECT_RATIOS).map(r=><option key={r} value={r}>{r} {r==='9:16'?'Portrait':r==='16:9'?'Landscape':r==='1:1'?'Square':r==='4:5'?'Portrait':'Portrait'}</option>)}</select></label><button className="small-icon" title="Full preview" aria-label="Open full preview" onClick={()=>{const el=document.querySelector(".viewport") as HTMLElement|null;if(!el)return;const request=el.requestFullscreen||((el as any).webkitRequestFullscreen);if(request)request.call(el);else alert("Full-screen preview is not supported by this browser.");}}><Maximize2 size={15}/></button></div></div>
+        <div className="scene-toolbar"><div><span className="eyebrow">SCENE EDITOR</span><strong>Composition</strong></div><div className="toolbar-right"><button type="button" className="wide-secondary" onClick={addTextLayer}>＋ Add Text</button><label className="format-control"><span>FORMAT</span><select className="format-select" value={aspectRatio} onChange={e=>{recordHistory();setAspectRatio(e.target.value);setCameraTransform(v=>({...v,x:0,y:0,z:20,zoom:1,roll:0}));}} aria-label="Composition aspect ratio">{Object.keys(ASPECT_RATIOS).map(r=><option key={r} value={r}>{r} {r==='9:16'?'Portrait':r==='16:9'?'Landscape':r==='1:1'?'Square':r==='4:5'?'Portrait':'Portrait'}</option>)}</select></label><button className="small-icon" title="Full preview" aria-label="Open full preview" onClick={()=>{const el=document.querySelector(".viewport") as HTMLElement|null;if(!el)return;const request=el.requestFullscreen||((el as any).webkitRequestFullscreen);if(request)request.call(el);else alert("Full-screen preview is not supported by this browser.");}}><Maximize2 size={15}/></button></div></div>
         <Viewport aspectRatio={aspectRatio} layers={animatedLayers} selectedId={selectedId} onSelect={id=>{setSelectedId(id);setTab('properties');}} onMove={(id,x,y)=>updateLayer(id,{x,y})} onMoveEnd={commitCurrentKeyframe} onCameraZoom={zoom=>updateCamera({zoom})} onCameraPan={patch=>updateCamera(patch)} onCameraReset={()=>{const reset={x:0,y:0,zoom:1,z:20,roll:0,yaw:0,pitch:0};cameraTransformRef.current=reset;setCameraTransform(reset);setLiveEditTime(null);}} cameraTransform={animatedCamera} playing={playing} playhead={playhead} windStrength={windStrength} windDirection={windDirection} atmosphere={atmosphere} environment={environment}/>
         <div className="six-layer-dock" aria-label="Six individual scene layer upload slots">
           <div className="six-layer-heading"><b>SCENE DEPTH</b><span>Upload one asset into each layer</span></div>
@@ -898,6 +924,16 @@ export default function App() {
         </div> : <div className="properties-panel">{selected ? <>
           <div className="panel-heading"><div><span className="eyebrow">SELECTED LAYER</span><strong>{selected.name}</strong></div><button className="danger-icon" title="Delete layer" onClick={()=>removeLayer(selected.id)}><Trash2 size={16}/></button></div>
           <label className="layer-name-field">Layer name<input type="text" value={selected.name} maxLength={64} onChange={e=>updateSelected({name:e.target.value})} placeholder="Name this layer"/></label>
+          {selected.textContent!==undefined && <section className="text-editor-card">
+            <div className="world-divider"><span>TEXT EDITOR</span></div>
+            <label>Text<textarea rows={3} value={selected.textContent} onChange={e=>updateTextLayer({textContent:e.target.value})} placeholder="Type your text"/></label>
+            <label>Font<select value={selected.textFont??'Arial'} onChange={e=>updateTextLayer({textFont:e.target.value})}><option>Arial</option><option>Georgia</option><option>Times New Roman</option><option>Verdana</option><option>Trebuchet MS</option><option>Courier New</option></select></label>
+            <label>Size <b>{selected.textSize??96}px</b><input type="range" min="24" max="180" step="2" value={selected.textSize??96} onChange={e=>updateTextLayer({textSize:+e.target.value})}/></label>
+            <label>Text colour <input type="color" value={selected.textColor??'#ffffff'} onChange={e=>updateTextLayer({textColor:e.target.value})}/></label>
+            <div className="text-style-row"><button type="button" className={selected.textBold?'selected':''} onClick={()=>updateTextLayer({textBold:!selected.textBold})}><b>B</b></button><button type="button" className={selected.textItalic?'selected':''} onClick={()=>updateTextLayer({textItalic:!selected.textItalic})}><i>I</i></button><select value={selected.textAlign??'center'} onChange={e=>updateTextLayer({textAlign:e.target.value as 'left'|'center'|'right'})}><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select></div>
+            <label>Outline colour <input type="color" value={selected.textStroke??'#000000'} onChange={e=>updateTextLayer({textStroke:e.target.value})}/></label>
+            <label>Outline width <b>{selected.textStrokeWidth??0}</b><input type="range" min="0" max="12" step="1" value={selected.textStrokeWidth??0} onChange={e=>updateTextLayer({textStrokeWidth:+e.target.value})}/></label>
+          </section>}
           <label>Position X <b>{selected.x.toFixed(2)}</b><input type="range" min="-3" max="3" step=".01" value={selected.x} onChange={e=>updateSelected({x:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
           <label>Position Y <b>{selected.y.toFixed(2)}</b><input type="range" min="-5" max="5" step=".01" value={selected.y} onChange={e=>updateSelected({y:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
           <label>Depth (Z) <b>{selected.z.toFixed(2)}</b><input type="range" min="-8" max="8" step=".05" value={selected.z} onChange={e=>updateSelected({z:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
