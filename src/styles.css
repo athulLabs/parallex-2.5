@@ -480,3 +480,23 @@
 .library-message{flex:0 0 auto;padding:8px 16px;border-top:1px solid #292b39;color:#c8baff;font-size:10px}
 .library-footer{height:43px;flex:0 0 43px;display:flex;align-items:center;justify-content:space-between;padding:0 15px;border-top:1px solid #292b39;color:#77798b;font-size:9px}.library-footer button{height:28px;padding:0 10px;border:1px solid #514275;border-radius:6px;background:#28213b;color:#d2c4ff;font-size:9px}
 @media(max-width:560px){.library-backdrop{padding:0;place-items:stretch}.library-window{width:100%;height:100dvh;max-height:100dvh;border-radius:0;border:0}.library-header{height:55px;flex-basis:55px}.library-content{padding:12px}.library-intro{align-items:flex-start;flex-direction:column}.library-intro .library-primary{width:100%}.project-clip{gap:5px;padding:7px}.project-clip label{flex-direction:column;gap:2px}.project-clip label input{width:46px}.project-clip>button{width:25px;height:27px}.clip-info b{max-width:110px}.project-row{gap:6px}.project-row>button{padding:0 6px;font-size:8px}.library-create-project{align-items:flex-start;flex-direction:column}.library-create-project button{width:100%}}
+
+
+/* Mobile toolbar fit: keep Add Text and aspect selector inside the editor */
+.toolbar-right { min-width:0; flex-shrink:1; }
+.text-add-button { width:auto !important; min-width:92px; flex:0 0 auto; height:30px; padding:0 10px; white-space:nowrap; }
+.format-control { flex:0 1 auto; min-width:0; }
+.format-select { min-width:0; max-width:100%; }
+@media (max-width:760px) {
+  .scene-toolbar { min-width:0; width:100%; overflow:hidden; }
+  .scene-toolbar > div:first-child { flex:0 0 auto; min-width:88px; }
+  .toolbar-right { flex:1 1 auto; justify-content:flex-end; gap:5px; overflow:hidden; }
+  .text-add-button { min-width:82px; max-width:96px; height:29px; padding:0 7px; font-size:9px; }
+  .format-control { flex:0 1 112px; max-width:112px; padding:2px 4px; }
+  .format-select { width:100%; min-width:0; max-width:100%; font-size:8px; padding:0 2px; }
+}
+@media (max-width:390px) {
+  .scene-toolbar > div:first-child { min-width:78px; }
+  .text-add-button { min-width:76px; max-width:82px; font-size:8px; }
+  .format-control { flex-basis:94px; max-width:94px; }
+}
