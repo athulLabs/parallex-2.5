@@ -500,3 +500,37 @@
   .text-add-button { min-width:76px; max-width:82px; font-size:8px; }
   .format-control { flex-basis:94px; max-width:94px; }
 }
+
+
+/* Hard containment for the mobile composition canvas and editor grid */
+html, body, #root { width:100%; max-width:100%; overflow-x:hidden; }
+@media (max-width:760px) {
+  .app-shell { width:100%; max-width:100vw; overflow:hidden; }
+  .workspace {
+    width:100%; max-width:100%; min-width:0;
+    grid-template-columns:43px minmax(0,1fr) !important;
+    overflow:hidden !important;
+  }
+  .editor-main {
+    width:100%; max-width:100%; min-width:0 !important;
+    grid-column:2; overflow:hidden !important;
+    justify-self:stretch;
+  }
+  .scene-toolbar, .viewport, .six-layer-dock, .timeline-panel {
+    width:100%; max-width:100%; min-width:0 !important;
+    box-sizing:border-box;
+  }
+  .viewport {
+    position:relative; overflow:hidden !important;
+    contain:layout paint size;
+  }
+  .viewport canvas {
+    position:absolute !important; inset:0 !important;
+    display:block !important; width:100% !important;
+    height:100% !important; max-width:100% !important;
+    max-height:100% !important;
+  }
+  .viewport-badge { max-width:calc(100% - 100px); overflow:hidden; white-space:nowrap; }
+  .viewport-actions { right:6px; gap:3px; }
+  .viewport-actions button { width:27px; height:27px; }
+}
