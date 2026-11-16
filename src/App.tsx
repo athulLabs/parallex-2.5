@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
+import { Muxer, ArrayBufferTarget } from 'mp4-muxer';
 import MaskEditor from './MaskEditor';
 import Library from './Library';
 import {
@@ -781,39 +782,90 @@ export default function App() {
     }
   };
   const exportVideo = async () => {
-    const canvas = document.querySelector('.viewport canvas') as HTMLCanvasElement | null;
-    if (!canvas) { alert('The preview is not ready yet.'); return; }
+    const sourceCanvas = document.querySelector('.viewport canvas') as HTMLCanvasElement | null;
+    if (!sourceCanvas) { alert('The preview is not ready yet.'); return; }
     if (keyframes.length < 2) { alert('Add at least two keyframes at different times before exporting a video.'); return; }
-    if (typeof canvas.captureStream !== 'function' || typeof MediaRecorder === 'undefined') {
-      alert('Video recording is not supported by this browser.'); return;
+    if (typeof VideoEncoder === 'undefined' || typeof VideoFrame === 'undefined') {
+      alert('MP4 export needs a recent version of Chrome or Samsung Internet with WebCodecs support. Open PARALLAX in an updated Chrome browser.');
+      return;
     }
+    const fps = 30;
+    const totalFrames = Math.max(1, Math.ceil(duration * fps));
+    const outputScale = Math.min(1, 1080 / Math.max(sourceCanvas.width, sourceCanvas.height));
+    const width = Math.max(2, Math.floor(sourceCanvas.width * outputScale / 2) * 2);
+    const height = Math.max(2, Math.floor(sourceCanvas.height * outputScale / 2) * 2);
+    const outputCanvas = document.createElement('canvas');
+    outputCanvas.width = width;
+    outputCanvas.height = height;
+    const outputContext = outputCanvas.getContext('2d');
+    if (!outputContext) { alert('Could not prepare the video frame buffer.'); return; }
+    let encoder: VideoEncoder | null = null;
     try {
       setPlaying(false);
       setPlayhead(0);
-      await new Promise(resolve => window.setTimeout(resolve, 250));
-      const stream = canvas.captureStream(30);
-      const mimeType = ['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'].find(type => MediaRecorder.isTypeSupported(type));
-      const recorder = new MediaRecorder(stream, mimeType ? {mimeType} : undefined);
-      const chunks: BlobPart[] = [];
-      recorder.ondataavailable = event => { if (event.data.size) chunks.push(event.data); };
-      recorder.onerror = () => { stream.getTracks().forEach(track => track.stop()); alert('Video export failed. Please try again.'); };
-      recorder.onstop = () => {
-        stream.getTracks().forEach(track => track.stop());
-        const blob = new Blob(chunks, {type: recorder.mimeType || 'video/webm'});
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = (projectName.trim() || 'parallax-scene').replace(/[^a-z0-9-_]+/gi,'-') + '.webm';
-        link.click();
-        window.setTimeout(() => URL.revokeObjectURL(url), 3000);
-        setPlaying(false);
-        setPlayhead(0);
-      };
-      recorder.start(100);
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const codec = 'avc1.42001f';
+      const support = await VideoEncoder.isConfigSupported({
+        codec, width, height, bitrate: 8_000_000, framerate: fps,
+        latencyMode: 'quality'
+      });
+      if (!support.supported) {
+        alert('This device does not provide an H.264 video encoder. Try an updated Chrome browser or a device with H.264 hardware encoding.');
+        return;
+      }
+      const target = new ArrayBufferTarget();
+      const muxer = new Muxer({
+        target,
+        video: { codec: 'avc', width, height, frameRate: fps },
+        fastStart: 'in-memory'
+      });
+      let encodeError: Error | null = null;
+      encoder = new VideoEncoder({
+        output: (chunk, metadata) => muxer.addVideoChunk(chunk, metadata),
+        error: error => { encodeError = error; }
+      });
+      encoder.configure(support.config);
       setPlaying(true);
-      window.setTimeout(() => { if (recorder.state !== 'inactive') recorder.stop(); }, duration * 1000 + 250);
-    } catch {
-      alert('Could not start video export. Please try again.');
+      for (let frameIndex = 0; frameIndex < totalFrames; frameIndex++) {
+        if (encodeError) throw encodeError;
+        const time = frameIndex / fps;
+        setPlayhead(time);
+        await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+        outputContext.drawImage(sourceCanvas, 0, 0, width, height);
+        const frame = new VideoFrame(outputCanvas, {
+          timestamp: Math.round(frameIndex * 1_000_000 / fps),
+          duration: Math.round(1_000_000 / fps)
+        });
+        encoder.encode(frame, { keyFrame: frameIndex % (fps * 2) === 0 });
+        frame.close();
+        while (encoder.encodeQueueSize > 6) {
+          await new Promise(resolve => setTimeout(resolve, 10));
+          if (encodeError) throw encodeError;
+        }
+      }
+      await encoder.flush();
+      if (encodeError) throw encodeError;
+      encoder.close();
+      encoder = null;
+      muxer.finalize();
+      const blob = new Blob([target.buffer], { type: 'video/mp4' });
+      if (!blob.size) throw new Error('The MP4 file was empty.');
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = (projectName.trim() || 'parallax-scene').replace(/[^a-z0-9-_]+/gi, '-') + '.mp4';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 10000);
+      alert('MP4 export complete. The H.264 video is ready for Samsung Gallery.');
+    } catch (error) {
+      console.error('PARALLAX MP4 export failed:', error);
+      alert(error instanceof Error ? 'MP4 export failed: ' + error.message : 'MP4 export failed. Please try again.');
+    } finally {
+      if (encoder && encoder.state !== 'closed') encoder.close();
+      setPlaying(false);
+      setPlayhead(0);
     }
   };
   const loadProject = async (file: File) => {
