@@ -10,7 +10,7 @@ export default function VideoEditor(){
  const [clips,setClips]=useState<MediaClip[]>([]),[selected,setSelected]=useState<string|null>(null),[tool,setTool]=useState<Tool>('media'),[playing,setPlaying]=useState(false),[time,setTime]=useState(0),[zoom,setZoom]=useState(1),[project,setProject]=useState('Untitled video'),[text,setText]=useState('Your text'),[aspect,setAspect]=useState('9:16'),[message,setMessage]=useState(''),[transition,setTransition]=useState('None');
  const fileRef=useRef<HTMLInputElement>(null),audioRef=useRef<HTMLInputElement>(null),videoRef=useRef<HTMLVideoElement>(null),audioEl=useRef<HTMLAudioElement>(null),canvasRef=useRef<HTMLCanvasElement>(null),last=useRef(0);
  const active=clips.find(c=>c.id===selected)||null, duration=Math.max(10,...clips.map(c=>c.start+c.duration));
- const visible=clips.filter(c=>c.kind!=='audio'&&c.kind!=='text'&&time>=c.start&&time<c.start+c.duration).sort((a,b)=>b.track-a.track);
+ const visible=clips.filter(c=>c.kind!=='audio'&&time>=c.start&&time<c.start+c.duration).sort((a,b)=>b.track-a.track);
  const current=visible[0]||null;
  useEffect(()=>{if(!playing)return;last.current=performance.now();const id=window.setInterval(()=>{const now=performance.now(),dt=(now-last.current)/1000;last.current=now;setTime(t=>{if(t+dt>=duration){setPlaying(false);return 0;}return t+dt;});},33);return()=>clearInterval(id);},[playing,duration]);
  useEffect(()=>{const v=videoRef.current;if(!v)return;const c=current;if(c?.kind==='video'){if(v.src!==c.url){v.src=c.url;v.currentTime=Math.max(0,c.trimStart+time-c.start);}if(playing)void v.play().catch(()=>{});else v.pause();}else{v.pause();}},[current?.id,playing,time]);
