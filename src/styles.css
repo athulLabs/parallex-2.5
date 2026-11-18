@@ -596,3 +596,22 @@ html, body, #root { width:100%; max-width:100%; overflow-x:hidden; }
 .capcut-add-list b,.capcut-add-list small{display:block}.capcut-add-list b{font-size:10px}.capcut-add-list small{margin-top:3px;color:#85879a;font-size:8px}
 .capcut-add-list button{display:flex;align-items:center;gap:4px;height:28px;padding:0 9px;border:1px solid #7459bc;border-radius:6px;background:#7252d6;color:white;font-size:9px}
 @media(max-width:560px){.library-header{gap:6px;padding:0 8px}.library-back-scene{height:31px;padding:0 7px;font-size:9px}.library-brand{gap:5px}.library-brand b{font-size:9px;letter-spacing:.7px}.library-brand small{font-size:8px}.library-close{width:30px;height:30px}.project-workspace-window{height:100dvh}.capcut-preview{height:min(30dvh,290px)}.capcut-inspector-title{align-items:flex-start;flex-direction:column}.capcut-open-original{align-self:flex-start}}
+
+
+/* Project editor canvas and functional tool panels */
+.capcut-preview canvas{display:block;width:100%;height:100%;object-fit:contain}
+.capcut-export{display:flex;align-items:center;gap:5px!important;padding:0 9px!important;background:#7656d9!important;color:#fff!important;border-color:#9c82f2!important}
+.capcut-tools>button{min-width:66px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:7px 9px;border:1px solid transparent;border-radius:8px;background:transparent;color:#aaa4bd;font-size:9px}
+.capcut-tools>button svg{width:18px;height:18px}
+.capcut-tools>button.active{border-color:#68509f;background:#29213c;color:#e2d5ff}
+.capcut-inspector>label{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:9px 0;color:#b8b4c6;font-size:10px}
+.capcut-inspector>label input[type=range]{width:54%;accent-color:#9a79ef}
+.capcut-inspector>label input[type=color]{width:38px;height:28px;border:0;background:transparent}
+.capcut-inspector>input:not([type=range]){width:100%;height:36px;margin:8px 0;padding:0 10px;border:1px solid #393449;border-radius:7px;background:#171722;color:#eee}
+.capcut-inspector>button,.capcut-inspector-title>button{display:inline-flex;align-items:center;gap:5px;min-height:30px;padding:0 10px;border:1px solid #68509f;border-radius:7px;background:#29213c;color:#e1d5ff;font-size:10px}
+.capcut-inspector p{color:#a19bad;font-size:10px}
+.capcut-overlay-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 0;border-top:1px solid #302e3b;color:#c6c0d2;font-size:10px}
+.capcut-overlay-row button{border:0;background:transparent;color:#e18b9b}
+.capcut-timeline-clip em{color:#9b8dc1;font:9px 'DM Mono';font-style:normal}
+.capcut-topbar .capcut-export{height:30px;white-space:nowrap;font-size:9px}
+@media(max-width:560px){.capcut-topbar{gap:5px;padding:0 7px}.capcut-topbar input{font-size:10px}.capcut-topbar .capcut-export{padding:0 6px!important;font-size:8px}.capcut-preview{height:min(31dvh,320px)}.capcut-tools>button{min-width:58px}}
