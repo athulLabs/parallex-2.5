@@ -954,6 +954,23 @@ export default function App() {
    <b>KEYFRAMES</b>
    {keyframes.length===0 ? <span className="keyframe-empty">No keyframes yet — move the playhead and tap + KEYFRAME.</span> : [...keyframes].sort((x,y)=>x.time-y.time).map((frame,index)=><button type="button" key={frame.id} className={selectedKeyframeId===frame.id?"active":""} onClick={()=>{setPlaying(false);setSelectedKeyframeId(frame.id);setPlayhead(frame.time);}}>{index+1} · {frame.time.toFixed(2)}s</button>)}
   </div>
+  <div className="layer-track-heading"><b>SCENE TRACKS</b><span>Each row follows its own layer animation</span></div>
+  <div className="layer-track-list" aria-label="Per-layer animation tracks">
+   {[...layers].slice().reverse().map(layer=>{
+    const points=keyframes.filter(frame=>frame.layers[layer.id]).sort((x,y)=>x.time-y.time);
+    return <div className={'layer-track-row '+(selectedId===layer.id?'active':'')} key={layer.id}>
+     <button type="button" className="layer-track-name" onClick={()=>{setSelectedId(layer.id);setTab('properties');}}>
+      <span className={'track-kind '+(layer.isVideo?'video':'image')}>{layer.isVideo?<Film size={12}/>:<ImageIcon size={12}/>}</span>
+      <span><b>{layer.name}</b><small>{layer.isVideo?'VIDEO LAYER':'IMAGE LAYER'} · {points.length} KF</small></span>
+     </button>
+     <div className="layer-track-rail">
+      {points.map(frame=><button type="button" key={frame.id} className={'layer-track-key '+(selectedKeyframeId===frame.id?'selected':'')} style={{left:(frame.time/duration*100)+'%'}} title={frame.time.toFixed(2)+'s'} aria-label={layer.name+' keyframe at '+frame.time.toFixed(2)+' seconds'} onClick={()=>{setPlaying(false);setSelectedId(layer.id);setSelectedKeyframeId(frame.id);setPlayhead(frame.time);}} />)}
+      <span className="layer-track-playhead" style={{left:(playhead/duration*100)+'%'}}/>
+     </div>
+    </div>;
+   })}
+   {layers.length===0&&<div className="layer-track-empty">Import a scene layer to create its animation track.</div>}
+  </div>
   <div className="timeline-bottom"><span><CircleDot size={11}/> {keyframes.length} saved</span><span>30 FPS · Smooth motion</span></div>
  </div>
        </section>
