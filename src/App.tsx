@@ -1008,7 +1008,7 @@ export default function App() {
             <div className="animation-actions"><button type="button" onClick={addKeyframe}><KeyRound size={13}/> Add / Update Keyframe</button><button type="button" disabled={!keyframes.some(frame=>frame.layers[selected.id])} onClick={()=>{const target=[...keyframes].filter(frame=>frame.layers[selected.id]).sort((x,y)=>Math.abs(x.time-playhead)-Math.abs(y.time-playhead))[0];if(target){setSelectedKeyframeId(target.id);setPlayhead(target.time);setPlaying(false);}}}>Nearest Keyframe</button></div>
           </div>:null}
           <div className="animation-footer"><span>{keyframes.filter(frame=>selected?!!frame.layers[selected.id]:false).length} layer keyframes</span><span>Scene timeline remains independent</span></div>
-        </div> : {tab==='environment' ? <div className="properties-panel environment-panel">
+        </div> : tab==='environment' ? <div className="properties-panel environment-panel">
           <div className="panel-heading"><div><span className="eyebrow">PROCEDURAL WORLD</span><strong>Environment</strong></div></div>
           <div className="environment-presets">{([['divine','Divine'],['sunset','Sunset'],['night','Night'],['storm','Storm'],['temple','Temple'],['cosmic','Cosmic']] as [EnvironmentPreset,string][]).map(([id,label])=><button key={id} className={environment.preset===id?'selected':''} onClick={()=>setEnvironment(v=>({...v,preset:id}))}>{label}</button>)}</div>
           <label>Sky intensity <b>{environment.intensity.toFixed(1)}×</b><input type="range" min="0.2" max="2" step=".05" value={environment.intensity} onChange={e=>setEnvironment(v=>({...v,intensity:+e.target.value}))}/></label>
