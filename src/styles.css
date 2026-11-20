@@ -636,3 +636,39 @@ html, body, #root { width:100%; max-width:100%; overflow-x:hidden; }
 .layer-track-playhead{position:absolute;z-index:3;top:0;bottom:0;width:1px;background:#ff8eaa;pointer-events:none}
 .layer-track-empty{padding:10px;color:#77798a;text-align:center;font-size:9px}
 @media(max-width:760px){.layer-track-list{max-height:100px}.layer-track-row{grid-template-columns:minmax(94px,31%) minmax(0,1fr);min-height:32px}.layer-track-name b{font-size:8px}}
+
+
+/* Dedicated Layer Animation workspace */
+.layer-animation-editor{display:flex;flex-direction:column;gap:12px;padding:12px;min-height:0}
+.layer-animation-editor .panel-heading{display:flex;align-items:center;justify-content:space-between}
+.animation-duration{padding:5px 8px;border:1px solid #44375e;border-radius:6px;background:#211b30;color:#cdbbff;font:10px 'DM Mono'}
+.animation-selected{display:flex;align-items:center;gap:9px;padding:9px;border:1px solid #393047;border-radius:9px;background:linear-gradient(110deg,#211b30,#171923)}
+.animation-selected>div{display:flex;flex:1;min-width:0;flex-direction:column;gap:3px}
+.animation-selected b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:#eee}
+.animation-selected small{font-size:9px;color:#9290a3}
+.animation-selected>button,.animation-actions button{display:flex;align-items:center;justify-content:center;gap:5px;min-height:32px;padding:0 9px;border:1px solid #765bc0;border-radius:7px;background:#392956;color:#f0eaff;font-size:9px;white-space:nowrap}
+.animation-selected>button:disabled,.animation-actions button:disabled{opacity:.4}
+.animation-transport{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #302b3b}
+.animation-transport>span{color:#c8baff;font:9px 'DM Mono';white-space:nowrap}
+.animation-transport input{flex:1;min-width:0;accent-color:#a58aff}
+.animation-track-title{display:flex;align-items:center;justify-content:space-between;gap:8px;color:#d4c8f5}
+.animation-track-title b{font:9px 'DM Mono';letter-spacing:.8px}
+.animation-track-title small{color:#828194;font-size:8px;text-align:right}
+.animation-track-list{display:flex;flex-direction:column;gap:5px;max-height:190px;overflow:auto}
+.animation-track-row{display:grid;grid-template-columns:minmax(92px,34%) minmax(0,1fr);min-height:42px;border:1px solid #303040;border-radius:7px;overflow:hidden;background:#151720}
+.animation-track-row.active{border-color:#8d70d3;background:#211b30}
+.animation-track-label{display:flex;align-items:center;gap:6px;min-width:0;padding:5px 7px;border:0;border-right:1px solid #333044;background:transparent;color:#e2dced;text-align:left}
+.animation-track-label b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:9px}
+.animation-track-rail{position:relative;min-width:0;touch-action:pan-y;background:repeating-linear-gradient(90deg,transparent 0,transparent calc(25% - 1px),#343044 25%,transparent calc(25% + 1px))}
+.animation-track-rail:after{content:"";position:absolute;left:0;right:0;top:50%;height:1px;background:#51456b;pointer-events:none}
+.animation-key{position:absolute;z-index:2;top:50%;width:11px;height:11px;padding:0;transform:translate(-50%,-50%) rotate(45deg);border:1px solid #eee5ff;border-radius:2px;background:#9b78ff}
+.animation-key.selected{width:14px;height:14px;background:#fff;box-shadow:0 0 0 3px #a98aff55}
+.animation-playhead{position:absolute;z-index:3;top:0;bottom:0;width:2px;background:#ff8da9;pointer-events:none}
+.animation-property-group{display:flex;flex-direction:column;gap:9px;padding-top:4px}
+.animation-property-group>label{display:grid;grid-template-columns:1fr auto;align-items:center;gap:6px;color:#bcb6ca;font-size:10px}
+.animation-property-group>label b{color:#e0d4ff;font:10px 'DM Mono'}
+.animation-property-group>label input{grid-column:1/-1;width:100%;accent-color:#9c7aee}
+.animation-actions{display:flex;gap:7px;flex-wrap:wrap}
+.animation-footer{display:flex;justify-content:space-between;gap:8px;padding-top:9px;border-top:1px solid #302b3b;color:#88869a;font:8px 'DM Mono'}
+.inspector-tabs button{white-space:nowrap}
+@media(max-width:760px){.layer-animation-editor{padding:9px;gap:10px}.animation-track-list{max-height:150px}.animation-track-row{grid-template-columns:minmax(82px,32%) minmax(0,1fr);min-height:40px}.animation-track-label b{font-size:8px}.animation-track-title{align-items:flex-start;flex-direction:column}.animation-track-title small{text-align:left}.animation-footer{font-size:7px}}
