@@ -44,7 +44,7 @@ export default function VideoEditor(){
  const moveClipDrag=(e:React.PointerEvent<HTMLElement>)=>{
   const d=dragRef.current;if(!d)return;e.preventDefault();const delta=(e.clientX-d.pointerX)/(48*zoom);
   if(d.mode==='move'){const start=Math.max(0,Math.round((d.start+delta)*10)/10);update(d.id,{start});}
-  else if(d.mode==='left'){const shift=Math.max(-d.start,Math.min(d.duration-.15,delta));update(d.id,{start:Math.round((d.start+shift)*100)/100,duration:Math.max(.15,Math.round((d.duration-shift)*100)/100),trimStart:Math.max(0,Math.round((d.trimStart+shift)*100)/100)});}
+  else if(d.mode==='left'){const maxSourceShift=Math.max(0,(clips.find(c=>c.id===d.id)?.sourceDuration??Infinity)-d.trimStart-.15);const shift=Math.max(-d.start,Math.min(Math.min(d.duration-.15,maxSourceShift),delta));update(d.id,{start:Math.round((d.start+shift)*100)/100,duration:Math.max(.15,Math.round((d.duration-shift)*100)/100),trimStart:Math.max(0,Math.round((d.trimStart+shift)*100)/100)});}
   else update(d.id,{duration:Math.max(.15,Math.min((clips.find(c=>c.id===d.id)?.sourceDuration??Infinity)-d.trimStart,Math.round((d.duration+delta)*100)/100))});
  };
  const endClipDrag=()=>{dragRef.current=null;};
