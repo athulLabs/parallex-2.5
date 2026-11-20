@@ -19,3 +19,5 @@
 
 /* Timeline clip manipulation */
 .ve-clip{touch-action:none;cursor:grab;user-select:none;padding-left:9px;padding-right:9px}.ve-clip:active{cursor:grabbing}.ve-trim-handle{position:absolute;z-index:2;top:0;bottom:0;width:9px;background:#d8c6ff55;cursor:ew-resize;touch-action:none}.ve-trim-handle.left{left:0;border-radius:4px 0 0 4px}.ve-trim-handle.right{right:0;border-radius:0 4px 4px 0}.ve-clip.selected .ve-trim-handle{background:#d6c3ff99}.ve-clip b,.ve-clip small{pointer-events:none}
+
+.ve-slider-controls{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px 12px}.ve-slider-controls .ve-range-control{display:grid;grid-template-columns:1fr auto;gap:3px 6px;min-width:0;color:#c2bad7;font-size:8px}.ve-slider-controls .ve-range-control input{grid-column:1/-1;width:100%;height:18px;accent-color:#a78bfa;touch-action:pan-y}.ve-slider-controls output{font:8px 'DM Mono';color:#d7c9ff}.ve-slider-controls select{width:64px}@media(max-width:600px){.ve-slider-controls{grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}.ve-slider-controls .ve-range-control{font-size:7px}.ve-slider-controls .ve-range-control input{height:20px}}
