@@ -484,7 +484,7 @@ export default function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [motionClipboard,setMotionClipboard] = useState<{sourceId:string;sourceName:string;points:{time:number;transform:Transform}[]}|null>(null);
   const [motionStatus,setMotionStatus] = useState('');
-  const [tab, setTab] = useState<'layers'|'properties'|'environment'>('layers');
+  const [tab, setTab] = useState<'layers'|'properties'|'environment'|'animation'>('layers');
   const [projectName, setProjectName] = useState('Untitled Scene');
   const [maskLayerId, setMaskLayerId] = useState<string | null>(null);
   const [duration, setDuration] = useState(10);
@@ -975,8 +975,40 @@ export default function App() {
  </div>
        </section>
       <aside className="inspector">
-        <div className="inspector-tabs"><button className={tab==='layers'?'chosen':''} onClick={()=>setTab('layers')}><Layers3 size={15}/> Layers</button><button className={tab==='properties'?'chosen':''} onClick={()=>setTab('properties')}><SlidersHorizontal size={15}/> Properties</button><button className={tab==='environment'?'chosen':''} onClick={()=>setTab('environment')}><Waves size={15}/> World</button></div>
-        {tab==='environment' ? <div className="properties-panel environment-panel">
+        <div className="inspector-tabs"><button className={tab==='layers'?'chosen':''} onClick={()=>setTab('layers')}><Layers3 size={15}/> Layers</button><button className={tab==='properties'?'chosen':''} onClick={()=>setTab('properties')}><SlidersHorizontal size={15}/> Properties</button><button className={tab==='animation'?'chosen':''} onClick={()=>setTab('animation')}><Film size={15}/> Animate</button><button className={tab==='environment'?'chosen':''} onClick={()=>setTab('environment')}><Waves size={15}/> World</button></div>
+        {tab==='animation' ? <div className="properties-panel layer-animation-editor">
+          <div className="panel-heading"><div><span className="eyebrow">LAYER WORKSPACE</span><strong>Layer Animation</strong></div><span className="animation-duration">{duration.toFixed(1)}s</span></div>
+          <div className="animation-selected">
+            <span className={'track-kind '+(selected?.isVideo?'video':'image')}>{selected?.isVideo?<Film size={14}/>:<ImageIcon size={14}/>}</span>
+            <div><b>{selected?.name??'No layer selected'}</b><small>{selected ? 'Editing independent layer motion' : 'Choose a layer to animate'}</small></div>
+            <button type="button" disabled={!selected} onClick={addKeyframe}><Plus size={14}/> Keyframe</button>
+          </div>
+          <div className="animation-transport">
+            <button type="button" className="play-btn" onClick={()=>{if(playhead>=duration)setPlayhead(0);setPlaying(v=>!v);}}>{playing?<Pause size={14}/>:<Play size={14}/>}</button>
+            <span>{playhead.toFixed(2)}s</span>
+            <input aria-label="Layer animation playhead" type="range" min="0" max={duration} step=".01" value={playhead} onChange={e=>{setPlaying(false);setPlayhead(+e.target.value);setLiveEditTime(null);}}/>
+            <span>{duration}s</span>
+          </div>
+          <div className="animation-track-title"><b>ANIMATION TRACKS</b><small>Tap a layer · drag timeline to scrub</small></div>
+          <div className="animation-track-list">
+            {[...layers].reverse().map(layer=>{
+              const points=keyframes.filter(frame=>frame.layers[layer.id]).sort((x,y)=>x.time-y.time);
+              return <div className={'animation-track-row '+(selectedId===layer.id?'active':'')} key={layer.id}>
+                <button type="button" className="animation-track-label" onClick={()=>setSelectedId(layer.id)}><span className={'track-kind '+(layer.isVideo?'video':'image')}>{layer.isVideo?<Film size={12}/>:<ImageIcon size={12}/>}</span><b>{layer.name}</b></button>
+                <div className="animation-track-rail" onPointerDown={e=>{const rect=e.currentTarget.getBoundingClientRect();const seek=()=>{const x=Math.max(0,Math.min(rect.width,e.clientX-rect.left));setPlayhead(x/rect.width*duration);setPlaying(false);setLiveEditTime(null);};(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);seek();}} onPointerMove={e=>{if(e.buttons!==1)return;const rect=e.currentTarget.getBoundingClientRect();setPlayhead(Math.max(0,Math.min(1,(e.clientX-rect.left)/rect.width))*duration);setPlaying(false);setLiveEditTime(null);}}>
+                  {points.map(frame=><button type="button" key={frame.id} className={'animation-key '+(selectedKeyframeId===frame.id?'selected':'')} style={{left:(frame.time/duration*100)+'%'}} title={frame.time.toFixed(2)+'s'} onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();setSelectedId(layer.id);setSelectedKeyframeId(frame.id);setPlayhead(frame.time);setPlaying(false);}}/>)}<span className="animation-playhead" style={{left:(playhead/duration*100)+'%'}}/>
+                </div>
+              </div>;
+            })}
+            {!layers.length&&<div className="layer-track-empty">Import artwork to create animation tracks.</div>}
+          </div>
+          {selected ? <div className="animation-property-group">
+            <div className="animation-track-title"><b>{selected.name.toUpperCase()} · TRANSFORM</b><small>Set the value, then add a keyframe</small></div>
+            {([['Position X','x',-3,3,.01],['Position Y','y',-5,5,.01],['Depth Z','z',-8,8,.05],['Scale','scale',.1,3,.01],['Rotation','rotation',-180,180,1],['Opacity','opacity',0,100,1]] as [string,keyof Transform,number,number,number][]).map(([label,key,min,max,step])=><label key={key}>{label}<b>{key==='opacity'?Math.round(selected[key])+'%':key==='scale'?selected[key].toFixed(2)+'×':selected[key].toFixed(2)}</b><input type="range" min={min} max={max} step={step} value={selected[key]} onChange={e=>updateSelected({[key]:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>)}
+            <div className="animation-actions"><button type="button" onClick={addKeyframe}><KeyRound size={13}/> Add / Update Keyframe</button><button type="button" disabled={!keyframes.some(frame=>frame.layers[selected.id])} onClick={()=>{const target=[...keyframes].filter(frame=>frame.layers[selected.id]).sort((x,y)=>Math.abs(x.time-playhead)-Math.abs(y.time-playhead))[0];if(target){setSelectedKeyframeId(target.id);setPlayhead(target.time);setPlaying(false);}}}>Nearest Keyframe</button></div>
+          </div>:null}
+          <div className="animation-footer"><span>{keyframes.filter(frame=>selected?!!frame.layers[selected.id]:false).length} layer keyframes</span><span>Scene timeline remains independent</span></div>
+        </div> : {tab==='environment' ? <div className="properties-panel environment-panel">
           <div className="panel-heading"><div><span className="eyebrow">PROCEDURAL WORLD</span><strong>Environment</strong></div></div>
           <div className="environment-presets">{([['divine','Divine'],['sunset','Sunset'],['night','Night'],['storm','Storm'],['temple','Temple'],['cosmic','Cosmic']] as [EnvironmentPreset,string][]).map(([id,label])=><button key={id} className={environment.preset===id?'selected':''} onClick={()=>setEnvironment(v=>({...v,preset:id}))}>{label}</button>)}</div>
           <label>Sky intensity <b>{environment.intensity.toFixed(1)}×</b><input type="range" min="0.2" max="2" step=".05" value={environment.intensity} onChange={e=>setEnvironment(v=>({...v,intensity:+e.target.value}))}/></label>
