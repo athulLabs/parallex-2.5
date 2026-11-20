@@ -9,7 +9,8 @@ const uid=()=>Math.random().toString(36).slice(2,10);
 const fmt=(n:number)=>{const v=Math.max(0,n);return Math.floor(v/60)+':'+(v%60).toFixed(1).padStart(4,'0');};
 export default function VideoEditor(){
  const [clips,setClips]=useState<MediaClip[]>([]),[selected,setSelected]=useState<string|null>(null),[tool,setTool]=useState<Tool>('media'),[playing,setPlaying]=useState(false),[time,setTime]=useState(0),[zoom,setZoom]=useState(1),[project,setProject]=useState('Untitled video'),[text,setText]=useState('Your text'),[aspect,setAspect]=useState('9:16'),[message,setMessage]=useState(''),[transition,setTransition]=useState('None');
- const dragRef=useRef<{id:string;mode:'move'|'left'|'right';pointerX:number;start:number;duration:number;trimStart:number}|null>(null);\n const previewRef=useRef<HTMLDivElement>(null),fileRef=useRef<HTMLInputElement>(null),audioRef=useRef<HTMLInputElement>(null),videoRef=useRef<HTMLVideoElement>(null),audioEl=useRef<HTMLAudioElement>(null),canvasRef=useRef<HTMLCanvasElement>(null),last=useRef(0);
+ const dragRef=useRef<{id:string;mode:'move'|'left'|'right';pointerX:number;start:number;duration:number;trimStart:number}|null>(null);
+ const previewRef=useRef<HTMLDivElement>(null),fileRef=useRef<HTMLInputElement>(null),audioRef=useRef<HTMLInputElement>(null),videoRef=useRef<HTMLVideoElement>(null),audioEl=useRef<HTMLAudioElement>(null),canvasRef=useRef<HTMLCanvasElement>(null),last=useRef(0);
  const active=clips.find(c=>c.id===selected)||null, duration=Math.max(10,...clips.map(c=>c.start+c.duration));
  const visible=clips.filter(c=>c.kind!=='audio'&&time>=c.start&&time<c.start+c.duration).sort((a,b)=>b.track-a.track);
  const current=visible[0]||null;
