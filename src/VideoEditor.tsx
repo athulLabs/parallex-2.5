@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';\nimport type { PointerEvent as ReactPointerEvent } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type { PointerEvent as ReactPointerEvent } from 'react';
 import { ArrowLeft, AudioLines, Clapperboard, Download, Film, FolderOpen, ImagePlus, Layers3, Music2, Pause, Play, Plus, Scissors, Settings2, SlidersHorizontal, Sparkles, Trash2, Type, Video, Volume2, Wand2, ZoomIn } from 'lucide-react';
 import { Muxer, ArrayBufferTarget } from 'mp4-muxer';
 import './video-editor.css';
