@@ -558,7 +558,7 @@ export default function App() {
     if(!a && !b) return layer; if(!a) return {...layer,...b}; if(!b) return {...layer,...a};
     const span=after.time-before.time, raw=span<=0?0:Math.max(0,Math.min(1,(playhead-before.time)/span));
     const t=raw*raw*(3-2*raw); // smoothstep easing avoids abrupt starts/stops
-    const mix=(key:keyof Transform)=>a[key]+(b[key]-a[key])*t;
+    const mix=(key:'x'|'y'|'z'|'scale'|'rotation'|'opacity')=>a[key]+(b[key]-a[key])*t;
     const rotationDelta=THREE.MathUtils.euclideanModulo(b.rotation-a.rotation+180,360)-180;
     return {...layer,x:mix('x'),y:mix('y'),z:mix('z'),scale:mix('scale'),scaleX:(a.scaleX??1)+((b.scaleX??1)-(a.scaleX??1))*t,scaleY:(a.scaleY??1)+((b.scaleY??1)-(a.scaleY??1))*t,scaleZ:(a.scaleZ??1)+((b.scaleZ??1)-(a.scaleZ??1))*t,rotation:a.rotation+rotationDelta*t,opacity:mix('opacity')};
   });
