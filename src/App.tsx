@@ -9,14 +9,14 @@ import {
   ZoomIn, ZoomOut, RotateCcw, Film, Settings2, Scan, Pause, CircleDot, SkipBack, Camera, KeyRound
 , Waves, Wind} from 'lucide-react';
 
-type Transform = { x:number; y:number; z:number; scale:number; rotation:number; opacity:number };
+type Transform = { x:number; y:number; z:number; scale:number; scaleX?:number; scaleY?:number; scaleZ?:number; rotation:number; opacity:number };
 type CameraTransform = { x:number; y:number; zoom:number; z:number; roll:number; yaw?:number; pitch?:number };
 type Keyframe = { id:string; time:number; layers:Record<string,Transform>; camera:CameraTransform };
 type EnvironmentPreset = 'divine'|'sunset'|'night'|'storm'|'temple'|'cosmic';
 type EnvironmentSettings = { preset: EnvironmentPreset; intensity:number; horizon:number; stars:boolean; fabric:boolean; fabricScale:number; fabricOpacity:number; fabricGlow:number; };
 type Layer = {
   id: string; name: string; url: string; fileName: string;
-  x: number; y: number; z: number; scale: number; rotation: number;
+  x: number; y: number; z: number; scale: number; scaleX?: number; scaleY?: number; scaleZ?: number; rotation: number;
   visible: boolean; locked: boolean; opacity: number; width: number; height: number; isVideo?: boolean;
   motionX?: number; motionY?: number; motionRotation?: number; motionSpeed?: number; slot?: number;
   textContent?: string; textFont?: string; textSize?: number; textColor?: string; textBold?: boolean; textItalic?: boolean; textAlign?: 'left'|'center'|'right'; textStroke?: string; textStrokeWidth?: number;
@@ -380,7 +380,7 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
       const mediaWidth=video?.videoWidth||media?.width||0, mediaHeight=video?.videoHeight||media?.height||0;
       if(mediaWidth>0&&mediaHeight>0){const mediaAspect=mediaWidth/mediaHeight,boardAspect=boardW/BOARD_H;const fitW=mediaAspect>boardAspect?boardW:BOARD_H*mediaAspect;const fitH=mediaAspect>boardAspect?boardW/mediaAspect:BOARD_H;const geometry=mesh.geometry as THREE.PlaneGeometry;const params=(geometry.parameters||{}) as {width?:number;height?:number};if(Math.abs((params.width||0)-fitW)>.001||Math.abs((params.height||0)-fitH)>.001){mesh.geometry.dispose();mesh.geometry=new THREE.PlaneGeometry(fitW,fitH);}}
       mesh.position.set(layer.x, layer.y, layer.z);
-      mesh.scale.setScalar(layer.scale);
+      mesh.scale.set(layer.scale*(layer.scaleX??1),layer.scale*(layer.scaleY??1),layer.scale*(layer.scaleZ??1));
       mesh.rotation.z = THREE.MathUtils.degToRad(layer.rotation);
       mesh.visible = layer.visible;
       // Respect the actual Z depth; array-index render order made background layers draw over foreground objects.
@@ -560,7 +560,7 @@ export default function App() {
     const t=raw*raw*(3-2*raw); // smoothstep easing avoids abrupt starts/stops
     const mix=(key:keyof Transform)=>a[key]+(b[key]-a[key])*t;
     const rotationDelta=THREE.MathUtils.euclideanModulo(b.rotation-a.rotation+180,360)-180;
-    return {...layer,x:mix('x'),y:mix('y'),z:mix('z'),scale:mix('scale'),rotation:a.rotation+rotationDelta*t,opacity:mix('opacity')};
+    return {...layer,x:mix('x'),y:mix('y'),z:mix('z'),scale:mix('scale'),scaleX:(a.scaleX??1)+((b.scaleX??1)-(a.scaleX??1))*t,scaleY:(a.scaleY??1)+((b.scaleY??1)-(a.scaleY??1))*t,scaleZ:(a.scaleZ??1)+((b.scaleZ??1)-(a.scaleZ??1))*t,rotation:a.rotation+rotationDelta*t,opacity:mix('opacity')};
   });
   const selected = animatedLayers.find(layer => layer.id === selectedId) ?? layers.find(layer => layer.id === selectedId) ?? null;
   const animatedCamera = (() => {
@@ -574,7 +574,7 @@ export default function App() {
   })();
   const makeFrame = (time:number, layerSnapshot:Layer[]=animatedLayers, cameraSnapshot:CameraTransform=animatedCamera):Keyframe => ({
     id:uid(),time:Number(time.toFixed(2)),
-    layers:Object.fromEntries(layerSnapshot.map(layer=>[layer.id,{x:layer.x,y:layer.y,z:layer.z,scale:layer.scale,rotation:layer.rotation,opacity:layer.opacity}])),
+    layers:Object.fromEntries(layerSnapshot.map(layer=>[layer.id,{x:layer.x,y:layer.y,z:layer.z,scale:layer.scale,scaleX:layer.scaleX??1,scaleY:layer.scaleY??1,scaleZ:layer.scaleZ??1,rotation:layer.rotation,opacity:layer.opacity}])),
     camera:{...cameraSnapshot}
   });
   const writeKeyframe = (frame:Keyframe) => setKeyframes(prev=>[...prev.filter(item=>Math.abs(item.time-frame.time)>0.015),frame].sort((a,b)=>a.time-b.time));
@@ -1004,7 +1004,7 @@ export default function App() {
           </div>
           {selected ? <div className="animation-property-group">
             <div className="animation-track-title"><b>{selected.name.toUpperCase()} · TRANSFORM</b><small>Set the value, then add a keyframe</small></div>
-            {([['Position X','x',-3,3,.01],['Position Y','y',-5,5,.01],['Depth Z','z',-8,8,.05],['Scale','scale',.1,3,.01],['Rotation','rotation',-180,180,1],['Opacity','opacity',0,100,1]] as [string,keyof Transform,number,number,number][]).map(([label,key,min,max,step])=><label key={key}>{label}<b>{key==='opacity'?Math.round(selected[key])+'%':key==='scale'?selected[key].toFixed(2)+'×':selected[key].toFixed(2)}</b><input type="range" min={min} max={max} step={step} value={selected[key]} onChange={e=>updateSelected({[key]:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>)}
+            {([['Position X','x',-3,3,.01],['Position Y','y',-5,5,.01],['Depth Z','z',-8,8,.05],['Scale X','scaleX',.1,3,.01],['Scale Y','scaleY',.1,3,.01],['Scale Z','scaleZ',.1,3,.01],['Rotation','rotation',-180,180,1],['Opacity','opacity',0,100,1]] as [string,'x'|'y'|'z'|'scaleX'|'scaleY'|'scaleZ'|'rotation'|'opacity',number,number,number][]).map(([label,key,min,max,step])=>{const value=key==='scaleX'?(selected.scaleX??1):key==='scaleY'?(selected.scaleY??1):key==='scaleZ'?(selected.scaleZ??1):selected[key];return <label key={key}>{label}<b>{key==='opacity'?Math.round(value)+'%':key.startsWith('scale')?value.toFixed(2)+'×':value.toFixed(2)}</b><input type="range" min={min} max={max} step={step} value={value} onChange={e=>updateSelected({[key]:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>})}
             <div className="animation-actions"><button type="button" onClick={addKeyframe}><KeyRound size={13}/> Add / Update Keyframe</button><button type="button" disabled={!keyframes.some(frame=>frame.layers[selected.id])} onClick={()=>{const target=[...keyframes].filter(frame=>frame.layers[selected.id]).sort((x,y)=>Math.abs(x.time-playhead)-Math.abs(y.time-playhead))[0];if(target){setSelectedKeyframeId(target.id);setPlayhead(target.time);setPlaying(false);}}}>Nearest Keyframe</button></div>
           </div>:null}
           <div className="animation-footer"><span>{keyframes.filter(frame=>selected?!!frame.layers[selected.id]:false).length} layer keyframes</span><span>Scene timeline remains independent</span></div>
@@ -1040,17 +1040,7 @@ export default function App() {
             <label>Outline colour <input type="color" value={selected.textStroke??'#000000'} onChange={e=>updateTextLayer({textStroke:e.target.value})}/></label>
             <label>Outline width <b>{selected.textStrokeWidth??0}</b><input type="range" min="0" max="12" step="1" value={selected.textStrokeWidth??0} onChange={e=>updateTextLayer({textStrokeWidth:+e.target.value})}/></label>
           </section>}
-          <label>Position X <b>{selected.x.toFixed(2)}</b><input type="range" min="-3" max="3" step=".01" value={selected.x} onChange={e=>updateSelected({x:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
-          <label>Position Y <b>{selected.y.toFixed(2)}</b><input type="range" min="-5" max="5" step=".01" value={selected.y} onChange={e=>updateSelected({y:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
-          <label>Depth (Z) <b>{selected.z.toFixed(2)}</b><input type="range" min="-8" max="8" step=".05" value={selected.z} onChange={e=>updateSelected({z:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
-          <div className="depth-presets" aria-label="Layer depth presets">
-            <button type="button" onClick={()=>setSelectedDepth(-8)}>Background</button>
-            <button type="button" onClick={()=>setSelectedDepth(0)}>Midground</button>
-            <button type="button" onClick={()=>setSelectedDepth(8)}>Foreground</button>
-          </div><p className="depth-help">Negative Z = farther behind · Positive Z = closer to camera.</p>
-          <label>Scale <b>{selected.scale.toFixed(2)}×</b><input type="range" min=".1" max="3" step=".01" value={selected.scale} onChange={e=>updateSelected({scale:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
-          <label>Rotation <b>{selected.rotation}°</b><input type="range" min="-180" max="180" value={selected.rotation} onChange={e=>updateSelected({rotation:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
-          <label>Opacity <b>{selected.opacity}%</b><input type="range" min="0" max="100" value={selected.opacity} onChange={e=>updateSelected({opacity:+e.target.value})} onPointerUp={commitCurrentKeyframe} onKeyUp={commitCurrentKeyframe}/></label>
+          <p className="properties-hint">Transform and animation controls are in the Animate tab.</p>
           <div className="camera-control-card layer-motion-card"><div><Wind size={14}/> Scene wind <small>Global motion while playing</small></div>
             <label>Wind strength <b>{windStrength.toFixed(2)}</b><input type="range" min="0" max="1" step=".01" value={windStrength} onChange={e=>setWindStrength(+e.target.value)}/></label>
             <label>Wind direction <b>{Math.round(windDirection*180/Math.PI)}°</b><input type="range" min="-3.14" max="3.14" step=".01" value={windDirection} onChange={e=>setWindDirection(+e.target.value)}/></label>
