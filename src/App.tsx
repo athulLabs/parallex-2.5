@@ -218,6 +218,26 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
     fabricGroup.position.set(0,-1.1,-3.35);fabricGroup.renderOrder=-2;scene.add(fabricGroup);
     sceneRef.current = scene; rendererRef.current = renderer; cameraRef.current = camera;
 
+    // Export directly from the Three.js scene at the requested output resolution.
+    // This avoids enlarging the small mobile preview canvas and producing a soft video.
+    (window as any).__PARALLAX_EXPORT_RENDER__ = (mode:'start'|'restore', width?:number, height?:number, ratio?:number) => {
+      if (mode === 'start' && width && height && ratio) {
+        renderer.setPixelRatio(1);
+        renderer.setSize(width, height, false);
+        camera.aspect = ratio;
+        applyCameraFraming(camera, cameraSettingsRef.current);
+        renderer.render(scene, camera);
+      } else if (mode === 'restore' && host.current) {
+        const w = Math.max(1, host.current.clientWidth);
+        const h = Math.max(1, host.current.clientHeight);
+        renderer.setPixelRatio(Math.min(Math.max(window.devicePixelRatio || 1, 2), 3));
+        renderer.setSize(w, h);
+        camera.aspect = w / h;
+        applyCameraFraming(camera, cameraSettingsRef.current);
+        renderer.render(scene, camera);
+      }
+    };
+
     const resize = () => {
       if (!host.current) return;
       const w = Math.max(1, host.current.clientWidth), h = Math.max(1, host.current.clientHeight);
@@ -277,6 +297,7 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
     render();
     return () => {
       cancelAnimationFrame(frameId); observer.disconnect();
+      delete (window as any).__PARALLAX_EXPORT_RENDER__;
       [cloudFx,mistFx,dustFx].forEach(fx=>{scene.remove(fx.points);fx.geometry.dispose();fx.material.dispose();});
       scene.remove(fabricGroup); fabricGeometry.dispose(); fabricMaterial.dispose(); surfaceGeometry.dispose(); surfaceMaterial.dispose(); camera.remove(board);
       meshes.current.forEach(mesh => {
@@ -832,16 +853,6 @@ export default function App() {
       width = align16(portraitShortEdge);
       height = align16(portraitShortEdge / exportRatio);
     }
-    // Crop the editor's centre to the selected output frame before encoding.
-    const sourceRatio = sourceCanvas.width / sourceCanvas.height;
-    let cropX = 0, cropY = 0, cropWidth = sourceCanvas.width, cropHeight = sourceCanvas.height;
-    if (sourceRatio > exportRatio) {
-      cropWidth = sourceCanvas.height * exportRatio;
-      cropX = (sourceCanvas.width - cropWidth) / 2;
-    } else if (sourceRatio < exportRatio) {
-      cropHeight = sourceCanvas.width / exportRatio;
-      cropY = (sourceCanvas.height - cropHeight) / 2;
-    }
     const outputCanvas = document.createElement('canvas');
     outputCanvas.width = width;
     outputCanvas.height = height;
@@ -856,7 +867,7 @@ export default function App() {
       const codecs = ['avc1.42001f','avc1.4d001f','avc1.640028','avc1.42001e'];
       let support: VideoEncoderSupport | null = null;
       let selectedCodec = '';
-      const bitrate = Math.min(45_000_000, Math.max(8_000_000, Math.round(width*height*fps*.12)));
+      const bitrate = exportResolution === '4K' ? 50_000_000 : exportResolution === '2K' ? 30_000_000 : 18_000_000;
       for (const codec of codecs) {
         try {
           const result = await VideoEncoder.isConfigSupported({codec,width,height,bitrate,framerate:fps,latencyMode:'quality'});
@@ -882,13 +893,16 @@ export default function App() {
         error: error => { encodeError = error; }
       });
       encoder.configure(support.config);
+      const exportRender = (window as any).__PARALLAX_EXPORT_RENDER__ as ((mode:'start'|'restore',width?:number,height?:number,ratio?:number)=>void)|undefined;
+      if (!exportRender) throw new Error('High-resolution scene renderer is not available.');
+      exportRender('start', width, height, exportRatio);
       setPlaying(true);
       for (let frameIndex = 0; frameIndex < totalFrames; frameIndex++) {
         if (encodeError) throw encodeError;
         const time = frameIndex / fps;
         setPlayhead(time);
         await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
-        outputContext.drawImage(sourceCanvas, cropX, cropY, cropWidth, cropHeight, 0, 0, width, height);
+        outputContext.drawImage(sourceCanvas, 0, 0, width, height);
         const frame = new VideoFrame(outputCanvas, {
           timestamp: Math.round(frameIndex * 1_000_000 / fps),
           duration: Math.round(1_000_000 / fps)
@@ -920,6 +934,7 @@ export default function App() {
       console.error('PARALLAX MP4 export failed:', error);
       alert(error instanceof Error ? 'MP4 export failed: ' + error.message : 'MP4 export failed. Please try again.');
     } finally {
+      try { ((window as any).__PARALLAX_EXPORT_RENDER__ as ((mode:'restore')=>void)|undefined)?.('restore'); } catch { /* keep the editor usable if restoring the preview fails */ }
       if (encoder && encoder.state !== 'closed') encoder.close();
       setPlaying(false);
       setPlayhead(0);
