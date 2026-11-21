@@ -472,7 +472,7 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
     <div className="viewport-badge"><span className="live-dot"/> {aspectRatio} COMPOSITION</div>
     <button type="button" className="viewport-reset-camera" title="Reset camera" aria-label="Reset camera" onClick={onCameraReset}><RotateCcw size={15} aria-hidden="true"/></button>
     <div className="viewport-actions" aria-label="Canvas view controls">
-      <button title="Fit composition to canvas" aria-label="Fit composition" onClick={onCameraReset}><Scan size={16}/></button>
+      <button type="button" className="fit-composition-btn" title="Fit the full output frame inside the preview" aria-label="Fit composition" onClick={onCameraReset}><Scan size={14}/><span>FIT</span></button>
       <button title="Zoom in" aria-label="Zoom in" onClick={() => onCameraZoom(Math.min(2.5,cameraTransform.zoom+0.15))}><ZoomIn size={16}/></button>
       <button title="Zoom out" aria-label="Zoom out" onClick={() => onCameraZoom(Math.max(.5,cameraTransform.zoom-0.15))}><ZoomOut size={16}/></button>
     </div>
