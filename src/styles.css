@@ -900,3 +900,10 @@ html, body, #root { width:100%; max-width:100%; overflow-x:hidden; }
 .viewport:fullscreen .viewport-actions button,.viewport:-webkit-full-screen .viewport-actions button{width:42px;height:42px;border-radius:10px;background:#171925ee;border-color:#51466d}
 .viewport:fullscreen .viewport-reset-camera,.viewport:-webkit-full-screen .viewport-reset-camera{display:none}
 @media(max-width:760px){.viewport-actions{top:6px!important;right:6px!important;gap:4px!important}.viewport-actions button{width:27px!important;height:27px!important}.viewport:fullscreen .viewport-actions,.viewport:-webkit-full-screen .viewport-actions{top:12px!important;right:12px!important}.viewport:fullscreen .viewport-actions button,.viewport:-webkit-full-screen .viewport-actions button{width:36px!important;height:36px!important}}
+
+
+/* Always-visible labeled canvas fit control */
+.viewport-actions .fit-composition-btn{width:auto!important;min-width:57px;padding:0 9px!important;display:flex!important;align-items:center;justify-content:center;gap:5px;border-color:#8064d4!important;background:#29213fee!important;color:#e4d9ff!important;font:700 9px 'DM Mono'!important;letter-spacing:.7px}
+.viewport-actions .fit-composition-btn span{display:inline!important}
+@media(max-width:760px){.viewport-actions .fit-composition-btn{min-width:53px!important;width:auto!important;height:27px!important;padding:0 7px!important;font-size:8px!important}}
+.viewport:fullscreen .viewport-actions .fit-composition-btn,.viewport:-webkit-full-screen .viewport-actions .fit-composition-btn{min-width:64px!important;height:42px!important}
