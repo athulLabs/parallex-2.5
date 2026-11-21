@@ -812,8 +812,10 @@ export default function App() {
     // Export dimensions must follow the selected composition ratio, never the editor viewport.
     const exportRatio = ASPECT_RATIOS[aspectRatio] ?? (9/16);
     const maxOutputSide = 1080;
-    const width = Math.max(2, Math.floor((exportRatio >= 1 ? maxOutputSide : maxOutputSide * exportRatio) / 2) * 2);
-    const height = Math.max(2, Math.floor((exportRatio >= 1 ? maxOutputSide / exportRatio : maxOutputSide) / 2) * 2);
+    // Align H.264 dimensions to 16-pixel macroblocks for better Android encoder compatibility.
+    const align16 = (value:number) => Math.max(16, Math.floor(value / 16) * 16);
+    let width = align16(exportRatio >= 1 ? maxOutputSide : maxOutputSide * exportRatio);
+    let height = align16(exportRatio >= 1 ? maxOutputSide / exportRatio : maxOutputSide);
     // Crop the editor's centre to the selected output frame before encoding.
     const sourceRatio = sourceCanvas.width / sourceCanvas.height;
     let cropX = 0, cropY = 0, cropWidth = sourceCanvas.width, cropHeight = sourceCanvas.height;
@@ -834,13 +836,29 @@ export default function App() {
       setPlaying(false);
       setPlayhead(0);
       await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-      const codec = 'avc1.42001f';
-      const support = await VideoEncoder.isConfigSupported({
-        codec, width, height, bitrate: 8_000_000, framerate: fps,
-        latencyMode: 'quality'
-      });
-      if (!support.supported || !support.config) {
-        alert('This device does not provide an H.264 video encoder. Try an updated Chrome browser or a device with H.264 hardware encoding.');
+      // Probe common H.264 profiles and progressively smaller aligned sizes.
+      // Some Android hardware encoders reject portrait/square 1080p configs but accept smaller ones.
+      const codecs = ['avc1.42001f','avc1.4d001f','avc1.640028','avc1.42001e'];
+      let support: VideoEncoderSupport | null = null;
+      let selectedCodec = '';
+      for (let scale = 1; scale >= .5 && !support; scale -= .125) {
+        const candidateWidth = align16(width * scale);
+        const candidateHeight = align16(height * scale);
+        for (const codec of codecs) {
+          try {
+            const result = await VideoEncoder.isConfigSupported({
+              codec, width:candidateWidth, height:candidateHeight,
+              bitrate:Math.min(8_000_000, Math.round(candidateWidth*candidateHeight*fps*.12)),
+              framerate:fps, latencyMode:'quality'
+            });
+            if (result.supported && result.config) {
+              width=candidateWidth;height=candidateHeight;support=result;selectedCodec=codec;break;
+            }
+          } catch { /* try the next profile or size */ }
+        }
+      }
+      if (!support?.config) {
+        alert('This browser/device cannot provide a compatible H.264 encoder for this export size. Try Samsung Internet or updated Chrome.');
         return;
       }
       const target = new ArrayBufferTarget();
