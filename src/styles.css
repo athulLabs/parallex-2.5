@@ -907,3 +907,8 @@ html, body, #root { width:100%; max-width:100%; overflow-x:hidden; }
 .viewport-actions .fit-composition-btn span{display:inline!important}
 @media(max-width:760px){.viewport-actions .fit-composition-btn{min-width:53px!important;width:auto!important;height:27px!important;padding:0 7px!important;font-size:8px!important}}
 .viewport:fullscreen .viewport-actions .fit-composition-btn,.viewport:-webkit-full-screen .viewport-actions .fit-composition-btn{min-width:64px!important;height:42px!important}
+
+/* Visible fit button beside the aspect-ratio selector */
+.fit-toolbar-btn{height:38px;min-width:58px;padding:0 9px;display:inline-flex;align-items:center;justify-content:center;gap:5px;border:1px solid #8064d4;border-radius:9px;background:#29213fee;color:#e4d9ff;font:700 9px 'DM Mono';letter-spacing:.7px;flex-shrink:0}
+.fit-toolbar-btn:active{background:#483475;transform:scale(.97)}
+@media(max-width:760px){.fit-toolbar-btn{height:38px;min-width:53px;padding:0 7px;font-size:8px}.toolbar-right{gap:6px}}
