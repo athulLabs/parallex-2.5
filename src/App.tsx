@@ -514,6 +514,7 @@ export default function App() {
   const cameraTransformRef = useRef<CameraTransform>(cameraTransform);
   cameraTransformRef.current = cameraTransform;
   const [aspectRatio,setAspectRatio]=useState('9:16');
+  const [exportResolution,setExportResolution]=useState<'1080p'|'2K'|'4K'>('1080p');
   const [selectedKeyframeId,setSelectedKeyframeId]=useState<string|null>(null);
   const [liveEditTime, setLiveEditTime] = useState<number | null>(null);
   const [hydrated,setHydrated]=useState(false);
@@ -811,7 +812,7 @@ export default function App() {
     const totalFrames = Math.max(1, Math.ceil(duration * fps));
     // Export dimensions must follow the selected composition ratio, never the editor viewport.
     const exportRatio = ASPECT_RATIOS[aspectRatio] ?? (9/16);
-    const maxOutputSide = 1080;
+    const maxOutputSide = exportResolution === '4K' ? 3840 : exportResolution === '2K' ? 2560 : 1920;
     // Align H.264 dimensions to 16-pixel macroblocks for better Android encoder compatibility.
     const align16 = (value:number) => Math.max(16, Math.floor(value / 16) * 16);
     let width = align16(exportRatio >= 1 ? maxOutputSide : maxOutputSide * exportRatio);
@@ -836,29 +837,19 @@ export default function App() {
       setPlaying(false);
       setPlayhead(0);
       await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-      // Probe common H.264 profiles and progressively smaller aligned sizes.
-      // Some Android hardware encoders reject portrait/square 1080p configs but accept smaller ones.
+      // Keep the requested resolution exact: never silently downgrade a 2K/4K export.
       const codecs = ['avc1.42001f','avc1.4d001f','avc1.640028','avc1.42001e'];
       let support: VideoEncoderSupport | null = null;
       let selectedCodec = '';
-      for (let scale = 1; scale >= .5 && !support; scale -= .125) {
-        const candidateWidth = align16(width * scale);
-        const candidateHeight = align16(height * scale);
-        for (const codec of codecs) {
-          try {
-            const result = await VideoEncoder.isConfigSupported({
-              codec, width:candidateWidth, height:candidateHeight,
-              bitrate:Math.min(8_000_000, Math.round(candidateWidth*candidateHeight*fps*.12)),
-              framerate:fps, latencyMode:'quality'
-            });
-            if (result.supported && result.config) {
-              width=candidateWidth;height=candidateHeight;support=result;selectedCodec=codec;break;
-            }
-          } catch { /* try the next profile or size */ }
-        }
+      const bitrate = Math.min(45_000_000, Math.max(8_000_000, Math.round(width*height*fps*.12)));
+      for (const codec of codecs) {
+        try {
+          const result = await VideoEncoder.isConfigSupported({codec,width,height,bitrate,framerate:fps,latencyMode:'quality'});
+          if (result.supported && result.config) { support=result; selectedCodec=codec; break; }
+        } catch { /* try the next H.264 profile */ }
       }
       if (!support?.config) {
-        alert('This browser/device cannot provide a compatible H.264 encoder for this export size. Try Samsung Internet or updated Chrome.');
+        alert(`${exportResolution} H.264 export at ${width} × ${height} is not supported by this browser/device. Choose a lower export resolution or try an updated Chrome/Samsung Internet browser. PARALLAX will not silently reduce your selected resolution.`);
         return;
       }
       // Apply the negotiated encoder dimensions to the frame source too.
@@ -955,7 +946,7 @@ export default function App() {
     <header className="topbar">
       <div className="brand"><div className="brand-mark">P</div><div><b>PARALLAX</b><small>2.5 CINEMATIC STUDIO</small></div></div>
       <div className="project-title"><input value={projectName} onChange={e=>setProjectName(e.target.value)} aria-label="Project name"/><span className="saved-dot"/><small>SESSION</small></div>
-      <div className="top-actions"><button className="icon-btn" title="Open PARALLAX project" onClick={()=>projectFileRef.current?.click()}><FolderOpen size={17}/></button><button className="icon-btn" title="Open content library" aria-label="Open content library" onClick={()=>setLibraryOpen(true)}><Layers3 size={17}/></button><button className="icon-btn" title="Save project JSON" onClick={saveProject}><Download size={17}/></button><button className="icon-btn mobile-hidden" title="Undo" aria-label="Undo" disabled={undoStack.current.length===0} onClick={undo}><Undo2 size={17}/></button><button className="icon-btn mobile-hidden" title="Redo" aria-label="Redo" disabled={redoStack.current.length===0} onClick={redo}><Redo2 size={17}/></button><button className="export-btn" onClick={exportVideo} title="Render the keyframed scene as a video"><Film size={15}/> Export Video</button></div>
+      <div className="top-actions"><button className="icon-btn" title="Open PARALLAX project" onClick={()=>projectFileRef.current?.click()}><FolderOpen size={17}/></button><button className="icon-btn" title="Open content library" aria-label="Open content library" onClick={()=>setLibraryOpen(true)}><Layers3 size={17}/></button><button className="icon-btn" title="Save project JSON" onClick={saveProject}><Download size={17}/></button><button className="icon-btn mobile-hidden" title="Undo" aria-label="Undo" disabled={undoStack.current.length===0} onClick={undo}><Undo2 size={17}/></button><button className="icon-btn mobile-hidden" title="Redo" aria-label="Redo" disabled={redoStack.current.length===0} onClick={redo}><Redo2 size={17}/></button><label className="format-control export-resolution-control"><span>EXPORT</span><select className="format-select" value={exportResolution} onChange={e=>setExportResolution(e.target.value as '1080p'|'2K'|'4K')} aria-label="Export resolution"><option value="1080p">1080p</option><option value="2K">2K</option><option value="4K">4K</option></select></label><button className="export-btn" onClick={exportVideo} title={`Export MP4 at ${exportResolution}`}><Film size={15}/> Export Video</button></div>
     </header>
     <div className="workspace">
       <aside className="left-rail">
