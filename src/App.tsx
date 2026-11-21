@@ -861,6 +861,9 @@ export default function App() {
         alert('This browser/device cannot provide a compatible H.264 encoder for this export size. Try Samsung Internet or updated Chrome.');
         return;
       }
+      // Apply the negotiated encoder dimensions to the frame source too.
+      outputCanvas.width = width;
+      outputCanvas.height = height;
       const target = new ArrayBufferTarget();
       const muxer = new Muxer({
         target,
