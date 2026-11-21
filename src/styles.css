@@ -912,3 +912,16 @@ html, body, #root { width:100%; max-width:100%; overflow-x:hidden; }
 .fit-toolbar-btn{height:38px;min-width:58px;padding:0 9px;display:inline-flex;align-items:center;justify-content:center;gap:5px;border:1px solid #8064d4;border-radius:9px;background:#29213fee;color:#e4d9ff;font:700 9px 'DM Mono';letter-spacing:.7px;flex-shrink:0}
 .fit-toolbar-btn:active{background:#483475;transform:scale(.97)}
 @media(max-width:760px){.fit-toolbar-btn{height:38px;min-width:53px;padding:0 7px;font-size:8px}.toolbar-right{gap:6px}}
+
+
+/* Composition Preview 2.0 — export frame, outside dimming and alignment guides */
+.viewport{isolation:isolate;background:#080a12!important}
+.composition-output-frame{position:absolute;z-index:5;left:50%;top:50%;transform:translate(-50%,-50%);max-width:92%;max-height:92%;border:1px solid rgba(207,194,255,.9);box-shadow:0 0 0 9999px rgba(3,5,13,.48),0 0 0 1px rgba(155,132,255,.22),0 0 22px rgba(137,104,255,.12);pointer-events:none;overflow:hidden}
+.composition-output-frame:before{content:"";position:absolute;inset:0;background:linear-gradient(135deg,rgba(139,112,255,.035),transparent 45%,rgba(139,112,255,.025));}
+.frame-third{position:absolute;display:block;background:rgba(210,201,255,.22)}
+.frame-third-v{top:0;bottom:0;width:1px}.frame-third-v1{left:33.333%}.frame-third-v2{left:66.666%}
+.frame-third-h{left:0;right:0;height:1px}.frame-third-h1{top:33.333%}.frame-third-h2{top:66.666%}
+.frame-corner{position:absolute;width:13px;height:13px;border-color:#d6c7ff;border-style:solid;opacity:.95}
+.frame-corner-tl{top:0;left:0;border-width:2px 0 0 2px}.frame-corner-tr{top:0;right:0;border-width:2px 2px 0 0}.frame-corner-bl{bottom:0;left:0;border-width:0 0 2px 2px}.frame-corner-br{bottom:0;right:0;border-width:0 2px 2px 0}
+.frame-center-dot{position:absolute;left:50%;top:50%;width:4px;height:4px;transform:translate(-50%,-50%);border:1px solid rgba(230,222,255,.7);border-radius:50%;background:rgba(12,10,20,.35)}
+@media(max-width:760px){.composition-output-frame{max-width:92%;max-height:92%;box-shadow:0 0 0 9999px rgba(3,5,13,.43),0 0 0 1px rgba(155,132,255,.22)}.frame-corner{width:11px;height:11px}}
