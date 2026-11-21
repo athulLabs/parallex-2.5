@@ -471,10 +471,10 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
     {layers.length === 0 && <div className="empty-scene"><div className="empty-icon"><ImageIcon size={26}/></div><strong>Your canvas is empty</strong><span>Import artwork to begin building your 2.5D scene.</span></div>}
     <div className="viewport-badge"><span className="live-dot"/> {aspectRatio} COMPOSITION</div>
     <button type="button" className="viewport-reset-camera" title="Reset camera" aria-label="Reset camera" onClick={onCameraReset}><RotateCcw size={15} aria-hidden="true"/></button>
-    <div className="viewport-actions">
-      <button title="Zoom in" onClick={() => onCameraZoom(Math.min(2.5,cameraTransform.zoom+0.15))}><ZoomIn size={16}/></button>
-      <button title="Zoom out" onClick={() => onCameraZoom(Math.max(.5,cameraTransform.zoom-0.15))}><ZoomOut size={16}/></button>
-      <button title="Reset view" onClick={onCameraReset}><RotateCcw size={16}/></button>
+    <div className="viewport-actions" aria-label="Canvas view controls">
+      <button title="Fit composition to canvas" aria-label="Fit composition" onClick={onCameraReset}><Scan size={16}/></button>
+      <button title="Zoom in" aria-label="Zoom in" onClick={() => onCameraZoom(Math.min(2.5,cameraTransform.zoom+0.15))}><ZoomIn size={16}/></button>
+      <button title="Zoom out" aria-label="Zoom out" onClick={() => onCameraZoom(Math.max(.5,cameraTransform.zoom-0.15))}><ZoomOut size={16}/></button>
     </div>
   </div>;
 }
@@ -495,7 +495,7 @@ export default function App() {
   const [atmosphere, setAtmosphere] = useState({clouds:false,mist:false,dust:false,intensity:1});
   const [environment,setEnvironment] = useState<EnvironmentSettings>({preset:'divine',intensity:1,horizon:0.35,stars:true,fabric:true,fabricScale:1,fabricOpacity:0.28,fabricGlow:0.55});
   const [keyframes, setKeyframes] = useState<Keyframe[]>([]);
-  const [cameraTransform, setCameraTransform] = useState<CameraTransform>({x:0,y:0,zoom:1,z:18,roll:0});
+  const [cameraTransform, setCameraTransform] = useState<CameraTransform>({x:0,y:0,zoom:1,z:20,roll:0});
   const cameraTransformRef = useRef<CameraTransform>(cameraTransform);
   cameraTransformRef.current = cameraTransform;
   const [aspectRatio,setAspectRatio]=useState('9:16');
