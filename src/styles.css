@@ -890,3 +890,13 @@ html, body, #root { width:100%; max-width:100%; overflow-x:hidden; }
   .timeline-actions .keyframe-btn,.timeline-actions .keyframe-delete-btn { height:22px !important;min-height:22px !important;width:24px !important;min-width:24px !important;flex-basis:24px !important; }
   .timeline-actions .timeline-duration select { height:22px !important; }
 }
+
+
+/* Composition preview: reliable fit and immersive fullscreen canvas */
+.viewport:fullscreen,.viewport:-webkit-full-screen{width:100vw!important;height:100dvh!important;max-width:none!important;max-height:none!important;min-height:0!important;border:0!important;border-radius:0!important;background:#090b13!important;display:block!important}
+.viewport:fullscreen canvas,.viewport:-webkit-full-screen canvas{width:100%!important;height:100%!important;display:block!important}
+.viewport:fullscreen .viewport-badge,.viewport:-webkit-full-screen .viewport-badge{top:14px;left:14px}
+.viewport:fullscreen .viewport-actions,.viewport:-webkit-full-screen .viewport-actions{top:14px;right:14px;gap:8px}
+.viewport:fullscreen .viewport-actions button,.viewport:-webkit-full-screen .viewport-actions button{width:42px;height:42px;border-radius:10px;background:#171925ee;border-color:#51466d}
+.viewport:fullscreen .viewport-reset-camera,.viewport:-webkit-full-screen .viewport-reset-camera{display:none}
+@media(max-width:760px){.viewport-actions{top:6px!important;right:6px!important;gap:4px!important}.viewport-actions button{width:27px!important;height:27px!important}.viewport:fullscreen .viewport-actions,.viewport:-webkit-full-screen .viewport-actions{top:12px!important;right:12px!important}.viewport:fullscreen .viewport-actions button,.viewport:-webkit-full-screen .viewport-actions button{width:36px!important;height:36px!important}}
