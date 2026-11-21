@@ -809,9 +809,21 @@ export default function App() {
     }
     const fps = 30;
     const totalFrames = Math.max(1, Math.ceil(duration * fps));
-    const outputScale = Math.min(1, 1080 / Math.max(sourceCanvas.width, sourceCanvas.height));
-    const width = Math.max(2, Math.floor(sourceCanvas.width * outputScale / 2) * 2);
-    const height = Math.max(2, Math.floor(sourceCanvas.height * outputScale / 2) * 2);
+    // Export dimensions must follow the selected composition ratio, never the editor viewport.
+    const exportRatio = ASPECT_RATIOS[aspectRatio] ?? (9/16);
+    const maxOutputSide = 1080;
+    const width = Math.max(2, Math.floor((exportRatio >= 1 ? maxOutputSide : maxOutputSide * exportRatio) / 2) * 2);
+    const height = Math.max(2, Math.floor((exportRatio >= 1 ? maxOutputSide / exportRatio : maxOutputSide) / 2) * 2);
+    // Crop the editor's centre to the selected output frame before encoding.
+    const sourceRatio = sourceCanvas.width / sourceCanvas.height;
+    let cropX = 0, cropY = 0, cropWidth = sourceCanvas.width, cropHeight = sourceCanvas.height;
+    if (sourceRatio > exportRatio) {
+      cropWidth = sourceCanvas.height * exportRatio;
+      cropX = (sourceCanvas.width - cropWidth) / 2;
+    } else if (sourceRatio < exportRatio) {
+      cropHeight = sourceCanvas.width / exportRatio;
+      cropY = (sourceCanvas.height - cropHeight) / 2;
+    }
     const outputCanvas = document.createElement('canvas');
     outputCanvas.width = width;
     outputCanvas.height = height;
@@ -849,7 +861,7 @@ export default function App() {
         const time = frameIndex / fps;
         setPlayhead(time);
         await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
-        outputContext.drawImage(sourceCanvas, 0, 0, width, height);
+        outputContext.drawImage(sourceCanvas, cropX, cropY, cropWidth, cropHeight, 0, 0, width, height);
         const frame = new VideoFrame(outputCanvas, {
           timestamp: Math.round(frameIndex * 1_000_000 / fps),
           duration: Math.round(1_000_000 / fps)
