@@ -64,6 +64,7 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
   onMove: (id: string, x: number, y: number) => void; onMoveEnd: () => void; onCameraZoom:(zoom:number)=>void; onCameraPan:(patch:Partial<CameraTransform>)=>void; onCameraReset:()=>void; cameraTransform: CameraTransform; aspectRatio:string; playing: boolean; playhead:number; windStrength: number; windDirection: number; atmosphere: {clouds:boolean;mist:boolean;dust:boolean;intensity:number}; environment: EnvironmentSettings;
 }) {
   const host = useRef<HTMLDivElement>(null);
+  const outputFrameRef = useRef<HTMLDivElement>(null);
   const boardW=BOARD_H*(ASPECT_RATIOS[aspectRatio]??(9/16));
   const fitDistance=useRef(24);
   const cameraSettingsRef=useRef(cameraTransform); cameraSettingsRef.current=cameraTransform;
@@ -223,6 +224,14 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
       camera.aspect = w / h;
       applyCameraFraming(camera,cameraSettingsRef.current);
       resizeCompositionFrame();
+      // Match the visible output frame to the selected export ratio and keep a safe margin.
+      const ratio=boardW/BOARD_H;
+      const frameW=Math.min(w*.92,h*.92*ratio);
+      const frameH=frameW/ratio;
+      if(outputFrameRef.current){
+        outputFrameRef.current.style.width=frameW+'px';
+        outputFrameRef.current.style.height=frameH+'px';
+      }
       renderer.setSize(w, h);
     };
     const observer = new ResizeObserver(resize); observer.observe(host.current); resize();
@@ -470,6 +479,12 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
   return <div className="viewport" ref={host} onPointerDown={down} onPointerMove={move} onPointerUp={finishPointer} onPointerCancel={finishPointer}>
     {layers.length === 0 && <div className="empty-scene"><div className="empty-icon"><ImageIcon size={26}/></div><strong>Your canvas is empty</strong><span>Import artwork to begin building your 2.5D scene.</span></div>}
     <div className="viewport-badge"><span className="live-dot"/> {aspectRatio} COMPOSITION</div>
+    <div className="composition-output-frame" ref={outputFrameRef} aria-hidden="true">
+      <span className="frame-third frame-third-v frame-third-v1"/><span className="frame-third frame-third-v frame-third-v2"/>
+      <span className="frame-third frame-third-h frame-third-h1"/><span className="frame-third frame-third-h frame-third-h2"/>
+      <i className="frame-corner frame-corner-tl"/><i className="frame-corner frame-corner-tr"/><i className="frame-corner frame-corner-bl"/><i className="frame-corner frame-corner-br"/>
+      <span className="frame-center-dot"/>
+    </div>
     <button type="button" className="viewport-reset-camera" title="Reset camera" aria-label="Reset camera" onClick={onCameraReset}><RotateCcw size={15} aria-hidden="true"/></button>
     <div className="viewport-actions" aria-label="Canvas view controls">
       <button type="button" className="fit-composition-btn" title="Fit the full output frame inside the preview" aria-label="Fit composition" onClick={onCameraReset}><Scan size={14}/><span>FIT</span></button>
