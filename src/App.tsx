@@ -812,11 +812,26 @@ export default function App() {
     const totalFrames = Math.max(1, Math.ceil(duration * fps));
     // Export dimensions must follow the selected composition ratio, never the editor viewport.
     const exportRatio = ASPECT_RATIOS[aspectRatio] ?? (9/16);
-    const maxOutputSide = exportResolution === '4K' ? 3840 : exportResolution === '2K' ? 2560 : 1920;
-    // Align H.264 dimensions to 16-pixel macroblocks for better Android encoder compatibility.
+    // Use standard resolution dimensions per aspect ratio. For 4:5 and 3:4,
+    // 1080p means a 1080px short edge (not an oversized 1536x1920 frame).
+    const resolutionScale = exportResolution === '4K' ? 2 : exportResolution === '2K' ? 4/3 : 1;
+    const portraitShortEdge = 1080 * resolutionScale;
+    const landscapeLongEdge = 1920 * resolutionScale;
+    // Align H.264 dimensions to 16-pixel macroblocks for Android encoder compatibility.
     const align16 = (value:number) => Math.max(16, Math.floor(value / 16) * 16);
-    let width = align16(exportRatio >= 1 ? maxOutputSide : maxOutputSide * exportRatio);
-    let height = align16(exportRatio >= 1 ? maxOutputSide / exportRatio : maxOutputSide);
+    let width:number, height:number;
+    if (Math.abs(exportRatio - 1) < 0.001) {
+      width = height = align16(1080 * resolutionScale);
+    } else if (exportRatio > 1) {
+      width = align16(landscapeLongEdge);
+      height = align16(landscapeLongEdge / exportRatio);
+    } else if (Math.abs(exportRatio - 9/16) < 0.001) {
+      width = align16(portraitShortEdge);
+      height = align16(portraitShortEdge / exportRatio);
+    } else {
+      width = align16(portraitShortEdge);
+      height = align16(portraitShortEdge / exportRatio);
+    }
     // Crop the editor's centre to the selected output frame before encoding.
     const sourceRatio = sourceCanvas.width / sourceCanvas.height;
     let cropX = 0, cropY = 0, cropWidth = sourceCanvas.width, cropHeight = sourceCanvas.height;
