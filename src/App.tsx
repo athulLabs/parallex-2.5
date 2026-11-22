@@ -651,7 +651,7 @@ export default function App() {
     if(preset==='pulse'){from.scale=base.scale*.82;to.scale=base.scale*1.12;}
     if(preset==='shake'){from.rotation=base.rotation-7;to.rotation=base.rotation+7;}
     const first=makeFrame(startTime,animatedLayers,animatedCamera),last=makeFrame(endTime,animatedLayers,animatedCamera);
-    first.layers[selected.id]=from;last.layers[selected.id]=to;
+    first.layers={[selected.id]:from};last.layers={[selected.id]:to};
     setKeyframes(prev=>{const merge=(frame:Keyframe)=>{const old=prev.find(item=>Math.abs(item.time-frame.time)<.015);return old?{...old,layers:{...old.layers,[selected.id]:frame.layers[selected.id]}}:frame;};return [...prev.filter(item=>Math.abs(item.time-first.time)>.015&&Math.abs(item.time-last.time)>.015),merge(first),merge(last)].sort((x,y)=>x.time-y.time);});
     setSelectedKeyframeId(last.id);setPlayhead(startTime);setPlaying(false);setLiveEditTime(null);
   };
