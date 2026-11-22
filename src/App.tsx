@@ -620,6 +620,26 @@ export default function App() {
   const writeKeyframe = (frame:Keyframe) => setKeyframes(prev=>[...prev.filter(item=>Math.abs(item.time-frame.time)>0.015),frame].sort((a,b)=>a.time-b.time));
   const addKeyframe = () => { recordHistory(); const frame=makeFrame(playhead,animatedLayers,animatedCamera); setKeyframes(prev=>[...prev.filter(item=>Math.abs(item.time-frame.time)>0.015),frame].sort((x,y)=>x.time-y.time)); setSelectedKeyframeId(frame.id); setLiveEditTime(null); setPlaying(false); };
   const selectedKeyframe = keyframes.find(frame=>frame.id===selectedKeyframeId) ?? null;
+  const selectedFx:LayerFx={...DEFAULT_LAYER_FX,...(selected?.fx||{})};
+  const updateSelectedFx=(patch:Partial<LayerFx>)=>{if(selected)updateSelected({fx:{...DEFAULT_LAYER_FX,...(selected.fx||{}),...patch}});};
+  const applyLayerAnimationPreset=(preset:'fade'|'zoom'|'slide'|'float'|'rotate'|'pulse'|'shake')=>{
+    if(!selected)return;recordHistory();
+    const startTime=Math.min(Math.max(0,playhead),Math.max(0,duration-1));
+    const endTime=Math.min(duration,startTime+Math.min(2,Math.max(.5,duration-startTime)));
+    const base:Transform={x:selected.x,y:selected.y,z:selected.z,scale:selected.scale,scaleX:selected.scaleX??1,scaleY:selected.scaleY??1,scaleZ:selected.scaleZ??1,rotation:selected.rotation,opacity:selected.opacity};
+    const from={...base},to={...base};
+    if(preset==='fade'){from.opacity=0;to.opacity=base.opacity;}
+    if(preset==='zoom'){from.scale=base.scale*.65;to.scale=base.scale;}
+    if(preset==='slide'){from.x=base.x-1.25;to.x=base.x;}
+    if(preset==='float'){from.y=base.y-.35;to.y=base.y+.35;}
+    if(preset==='rotate'){from.rotation=base.rotation-22;to.rotation=base.rotation+22;}
+    if(preset==='pulse'){from.scale=base.scale*.82;to.scale=base.scale*1.12;}
+    if(preset==='shake'){from.rotation=base.rotation-7;to.rotation=base.rotation+7;}
+    const first=makeFrame(startTime,animatedLayers,animatedCamera),last=makeFrame(endTime,animatedLayers,animatedCamera);
+    first.layers[selected.id]=from;last.layers[selected.id]=to;
+    setKeyframes(prev=>{const merge=(frame:Keyframe)=>{const old=prev.find(item=>Math.abs(item.time-frame.time)<.015);return old?{...old,layers:{...old.layers,[selected.id]:frame.layers[selected.id]}}:frame;};return [...prev.filter(item=>Math.abs(item.time-first.time)>.015&&Math.abs(item.time-last.time)>.015),merge(first),merge(last)].sort((x,y)=>x.time-y.time);});
+    setSelectedKeyframeId(last.id);setPlayhead(startTime);setPlaying(false);setLiveEditTime(null);
+  };
   const deleteSelectedKeyframe = () => { const target=selectedKeyframe ?? [...keyframes].sort((a,b)=>Math.abs(a.time-playhead)-Math.abs(b.time-playhead))[0] ?? null; if(!target)return; recordHistory(); setKeyframes(prev=>prev.filter(frame=>frame.id!==target.id)); setSelectedKeyframeId(null); };
   const playbackStart = useRef(0);
   useEffect(()=>{ if(tab==='properties') document.querySelector('.properties-panel')?.scrollTo({top:0,behavior:'smooth'}); },[tab,selectedId]);
