@@ -424,6 +424,14 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
       mesh.visible = layer.visible;
       // Respect the actual Z depth; array-index render order made background layers draw over foreground objects.
       mesh.renderOrder = Math.round((layer.z + 8) * 100);
+      const fx={...DEFAULT_LAYER_FX,...(layer.fx||{})},uniforms=mesh.userData.fxUniforms;
+      if(uniforms){
+        const ids:Record<string,number>={none:0,cinematic:1,vintage:2,monochrome:3,warm:4,cool:5,teal:6,faded:7,dreamy:8};
+        uniforms.uFxFilter.value=ids[fx.filter]??0;uniforms.uFxAmount.value=fx.filterAmount;
+        uniforms.uFxBrightness.value=fx.brightness;uniforms.uFxContrast.value=fx.contrast;uniforms.uFxSaturation.value=fx.saturation;
+        uniforms.uFxWarmth.value=fx.warmth;uniforms.uFxGlow.value=fx.glow;uniforms.uFxBlur.value=fx.blur;
+        uniforms.uFxGrain.value=fx.grain;uniforms.uFxVignette.value=fx.vignette;uniforms.uFxGlitch.value=fx.glitch;uniforms.uFxRgb.value=fx.rgbSplit;
+      }
       (mesh.material as THREE.MeshBasicMaterial).opacity = layer.opacity / 100;
     });
   }, [layers,aspectRatio]);
