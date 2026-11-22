@@ -6,7 +6,7 @@ import Library from './Library';
 import {
   Upload, Layers3, Image as ImageIcon, Move3D, SlidersHorizontal, Eye, EyeOff,
   Lock, Unlock, Trash2, Copy, Plus, Play, Undo2, Redo2, Maximize2, Download, FolderOpen,
-  ZoomIn, ZoomOut, RotateCcw, Film, Settings2, Scan, Pause, CircleDot, SkipBack, Camera, KeyRound
+  ZoomIn, ZoomOut, RotateCcw, Film, Settings2, Scan, Pause, CircleDot, SkipBack, Camera, KeyRound, Sparkles
 , Waves, Wind} from 'lucide-react';
 
 type Transform = { x:number; y:number; z:number; scale:number; scaleX?:number; scaleY?:number; scaleZ?:number; rotation:number; opacity:number };
@@ -14,12 +14,14 @@ type CameraTransform = { x:number; y:number; zoom:number; z:number; roll:number;
 type Keyframe = { id:string; time:number; layers:Record<string,Transform>; camera:CameraTransform };
 type EnvironmentPreset = 'divine'|'sunset'|'night'|'storm'|'temple'|'cosmic';
 type EnvironmentSettings = { preset: EnvironmentPreset; intensity:number; horizon:number; stars:boolean; fabric:boolean; fabricScale:number; fabricOpacity:number; fabricGlow:number; };
+type LayerFx = { filter:string; filterAmount:number; brightness:number; contrast:number; saturation:number; warmth:number; glow:number; blur:number; grain:number; vignette:number; glitch:number; rgbSplit:number; };
+const DEFAULT_LAYER_FX:LayerFx={filter:'none',filterAmount:1,brightness:1,contrast:1,saturation:1,warmth:0,glow:0,blur:0,grain:0,vignette:0,glitch:0,rgbSplit:0};
 type Layer = {
   id: string; name: string; url: string; fileName: string;
   x: number; y: number; z: number; scale: number; scaleX?: number; scaleY?: number; scaleZ?: number; rotation: number;
   visible: boolean; locked: boolean; opacity: number; width: number; height: number; isVideo?: boolean;
   motionX?: number; motionY?: number; motionRotation?: number; motionSpeed?: number; slot?: number;
-  textContent?: string; textFont?: string; textSize?: number; textColor?: string; textBold?: boolean; textItalic?: boolean; textAlign?: 'left'|'center'|'right'; textStroke?: string; textStrokeWidth?: number;
+  textContent?: string; textFont?: string; textSize?: number; textColor?: string; textBold?: boolean; textItalic?: boolean; textAlign?: 'left'|'center'|'right'; textStroke?: string; textStrokeWidth?: number; fx?:LayerFx;
 };
 const uid = () => Math.random().toString(36).slice(2, 10);
 const renderTextArtwork = (text:string,font:string,size:number,color:string,bold:boolean,italic:boolean,align:'left'|'center'|'right',stroke:string,strokeWidth:number) => {
@@ -520,7 +522,8 @@ export default function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [motionClipboard,setMotionClipboard] = useState<{sourceId:string;sourceName:string;points:{time:number;transform:Transform}[]}|null>(null);
   const [motionStatus,setMotionStatus] = useState('');
-  const [tab, setTab] = useState<'layers'|'properties'|'environment'|'animation'>('layers');
+  const [tab, setTab] = useState<'layers'|'properties'|'environment'|'animation'|'fx'>('layers');
+  const [fxSubTab,setFxSubTab]=useState<'effects'|'filters'|'motion'>('effects');
   const [projectName, setProjectName] = useState('Untitled Scene');
   const [maskLayerId, setMaskLayerId] = useState<string | null>(null);
   const [duration, setDuration] = useState(10);
