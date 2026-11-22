@@ -1007,6 +1007,7 @@ export default function App() {
         <button className="rail-item" onClick={()=>setTab('layers')}><Layers3/><span>Layers</span></button>
         <button className="rail-item" onClick={()=>fileRef.current?.click()}><ImageIcon/><span>Media</span></button>
         <button className="rail-item" onClick={()=>setTab('properties')}><SlidersHorizontal/><span>Adjust</span></button>
+        <button className={'rail-item '+(tab==='fx'?'active':'')} onClick={()=>setTab('fx')}><Sparkles/><span>FX</span></button>
         <button className={'rail-item '+(tab==='environment'?'active':'')} onClick={()=>setTab('environment')}><Waves/><span>World</span></button>
         <div className="rail-bottom"><button className="rail-item" onClick={()=>setSettingsOpen(true)}><Settings2/><span>Settings</span></button></div>
       </aside>
@@ -1046,8 +1047,28 @@ export default function App() {
  </div>
        </section>
       <aside className="inspector">
-        <div className="inspector-tabs"><button className={tab==='layers'?'chosen':''} onClick={()=>setTab('layers')}><Layers3 size={15}/> Layers</button><button className={tab==='properties'?'chosen':''} onClick={()=>setTab('properties')}><SlidersHorizontal size={15}/> Properties</button><button className={tab==='animation'?'chosen':''} onClick={()=>setTab('animation')}><Film size={15}/> Animate</button><button className={tab==='environment'?'chosen':''} onClick={()=>setTab('environment')}><Waves size={15}/> World</button></div>
-        {tab==='animation' ? <div className="properties-panel layer-animation-editor">
+        <div className="inspector-tabs"><button className={tab==='layers'?'chosen':''} onClick={()=>setTab('layers')}><Layers3 size={15}/> Layers</button><button className={tab==='properties'?'chosen':''} onClick={()=>setTab('properties')}><SlidersHorizontal size={15}/> Properties</button><button className={tab==='animation'?'chosen':''} onClick={()=>setTab('animation')}><Film size={15}/> Animate</button><button className={tab==='fx'?'chosen':''} onClick={()=>setTab('fx')}><Sparkles size={15}/> FX</button><button className={tab==='environment'?'chosen':''} onClick={()=>setTab('environment')}><Waves size={15}/> World</button></div>
+        {tab==='fx' ? <div className="properties-panel fx-panel">
+          <div className="panel-heading"><div><span className="eyebrow">SELECTED LAYER ONLY</span><strong>FX Studio</strong></div><span className="fx-active-badge">{selected?selected.name:'NO LAYER'}</span></div>
+          <div className="fx-subtabs"><button className={fxSubTab==='effects'?'active':''} onClick={()=>setFxSubTab('effects')}>Effects</button><button className={fxSubTab==='filters'?'active':''} onClick={()=>setFxSubTab('filters')}>Filters</button><button className={fxSubTab==='motion'?'active':''} onClick={()=>setFxSubTab('motion')}>Motion</button></div>
+          {!selected ? <div className="layer-empty"><Sparkles size={22}/><b>Select a layer first</b><span>FX controls apply only to the selected layer.</span><button onClick={()=>setTab('layers')}>Choose layer</button></div> : <>
+            <div className="fx-target-row"><span className="track-kind image"><Sparkles size={13}/></span><div><b>{selected.name}</b><small>Independent layer settings</small></div><button type="button" onClick={()=>updateSelected({fx:{...DEFAULT_LAYER_FX}})}>Reset FX</button></div>
+            {fxSubTab==='effects' ? <div className="fx-control-list">
+              {([['Glow','glow'],['Soft Blur','blur'],['Film Grain','grain'],['Vignette','vignette'],['Glitch','glitch'],['RGB Split','rgbSplit']] as [string,'glow'|'blur'|'grain'|'vignette'|'glitch'|'rgbSplit'][]).map(([label,key])=><label className="fx-slider" key={key}><span>{label}</span><b>{Math.round(selectedFx[key]*100)}%</b><input type="range" min="0" max="1" step=".01" value={selectedFx[key]} onChange={e=>updateSelectedFx({[key]:+e.target.value})}/></label>)}
+              <div className="fx-note">Effects are stacked on this layer and included in video export.</div>
+            </div> : fxSubTab==='filters' ? <div className="fx-filter-grid">
+              {([['none','Original'],['cinematic','Cinematic'],['vintage','Vintage'],['monochrome','B&W'],['warm','Warm'],['cool','Cool'],['teal','Teal & Orange'],['faded','Faded Film'],['dreamy','Dreamy']] as [string,string][]).map(([id,label])=><button type="button" key={id} className={selectedFx.filter===id?'active':''} onClick={()=>updateSelectedFx({filter:id})}><span className={'filter-swatch filter-'+id}/>{label}</button>)}
+              <label className="fx-slider fx-filter-intensity"><span>Filter intensity</span><b>{Math.round(selectedFx.filterAmount*100)}%</b><input type="range" min="0" max="1" step=".01" value={selectedFx.filterAmount} onChange={e=>updateSelectedFx({filterAmount:+e.target.value})}/></label>
+              {([['Brightness','brightness',.4,1.8,.01],['Contrast','contrast',.5,1.8,.01],['Saturation','saturation',0,2,.01],['Warmth','warmth',-1,1,.01]] as [string,'brightness'|'contrast'|'saturation'|'warmth',number,number,number][]).map(([label,key,min,max,step])=><label className="fx-slider" key={key}><span>{label}</span><b>{selectedFx[key].toFixed(2)}</b><input type="range" min={min} max={max} step={step} value={selectedFx[key]} onChange={e=>updateSelectedFx({[key]:+e.target.value})}/></label>)}
+            </div> : <div className="fx-motion-panel">
+              <div className="fx-preset-grid">{([['fade','Fade In'],['zoom','Zoom'],['slide','Slide In'],['float','Float'],['rotate','Slow Rotate'],['pulse','Pulse'],['shake','Shake']] as ['fade'|'zoom'|'slide'|'float'|'rotate'|'pulse'|'shake',string][]).map(([id,label])=><button type="button" key={id} onClick={()=>applyLayerAnimationPreset(id)}><span>{label}</span><small>ADD KEYFRAMES</small></button>)}</div>
+              <div className="fx-note">Presets add real start/end keyframes to {selected.name}; other layer tracks stay untouched.</div>
+              <label className="fx-slider"><span>Layer drift X</span><b>{(selected.motionX??0).toFixed(2)}</b><input type="range" min="0" max=".8" step=".01" value={selected.motionX??0} onChange={e=>updateSelected({motionX:+e.target.value})}/></label>
+              <label className="fx-slider"><span>Layer drift Y</span><b>{(selected.motionY??0).toFixed(2)}</b><input type="range" min="0" max=".8" step=".01" value={selected.motionY??0} onChange={e=>updateSelected({motionY:+e.target.value})}/></label>
+              <label className="fx-slider"><span>Motion speed</span><b>{(selected.motionSpeed??1).toFixed(1)}×</b><input type="range" min=".2" max="3" step=".1" value={selected.motionSpeed??1} onChange={e=>updateSelected({motionSpeed:+e.target.value})}/></label>
+            </div>}
+          </>}
+        </div> : tab==='animation' ? <div className="properties-panel layer-animation-editor">
           <div className="panel-heading"><div><span className="eyebrow">LAYER WORKSPACE</span><strong>Layer Animation</strong></div><span className="animation-duration">{duration.toFixed(1)}s</span></div>
           <div className="animation-selected">
             <span className={'track-kind '+(selected?.isVideo?'video':'image')}>{selected?.isVideo?<Film size={14}/>:<ImageIcon size={14}/>}</span>
