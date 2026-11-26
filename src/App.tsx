@@ -280,20 +280,27 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
       };
       updateAtmosphere(cloudFx,.10,.18); updateAtmosphere(mistFx,.035,.10); updateAtmosphere(dustFx,.12,.24);
       cloudFx.material.opacity=.12*fx.intensity; mistFx.material.opacity=.22*fx.intensity; dustFx.material.opacity=.72*fx.intensity;
-      if (playingRef.current) {
-        layersRef.current.forEach(layer => {
-          const mesh = meshes.current.get(layer.id);
-          if (!mesh) return;
-          const speed = Math.max(0.05, layer.motionSpeed ?? 1);
-          const phase = (parseInt(layer.id.slice(0, 5), 36) || 0) * 0.0007;
-          const wave = time * speed + phase;
-          const wind=windRef.current;
-          const windPhase=wave*0.28+phase;
-          mesh.position.x = layer.x + Math.sin(wave) * (layer.motionX ?? 0) + Math.sin(windPhase)*wind.strength*0.18*Math.cos(wind.direction);
-          mesh.position.y = layer.y + Math.sin(wave * 0.72 + 0.8) * (layer.motionY ?? 0) + Math.sin(windPhase*0.8)*wind.strength*0.10*Math.sin(wind.direction);
-          mesh.rotation.z = THREE.MathUtils.degToRad(layer.rotation + Math.sin(wave * 0.55) * (layer.motionRotation ?? 0));
-        });
-      }
+      // One authoritative transform writer: apply the latest evaluated layer state
+      // every frame, then add procedural motion as a temporary offset. This avoids
+      // React's layer-sync effect and the RAF loop racing to write the same mesh.
+      layersRef.current.forEach(layer => {
+        const mesh = meshes.current.get(layer.id);
+        if (!mesh) return;
+        const isPlaying = playingRef.current;
+        const speed = Math.max(0.05, layer.motionSpeed ?? 1);
+        const phase = (parseInt(layer.id.slice(0, 5), 36) || 0) * 0.0007;
+        const wave = time * speed + phase;
+        const wind=windRef.current;
+        const windPhase=wave*0.28+phase;
+        const motionX = isPlaying ? Math.sin(wave) * (layer.motionX ?? 0) + Math.sin(windPhase)*wind.strength*0.18*Math.cos(wind.direction) : 0;
+        const motionY = isPlaying ? Math.sin(wave * 0.72 + 0.8) * (layer.motionY ?? 0) + Math.sin(windPhase*0.8)*wind.strength*0.10*Math.sin(wind.direction) : 0;
+        const motionRotation = isPlaying ? Math.sin(wave * 0.55) * (layer.motionRotation ?? 0) : 0;
+        mesh.position.set(layer.x + motionX, layer.y + motionY, layer.z);
+        mesh.scale.set(layer.scale*(layer.scaleX??1),layer.scale*(layer.scaleY??1),layer.scale*(layer.scaleZ??1));
+        mesh.rotation.z = THREE.MathUtils.degToRad(layer.rotation + motionRotation);
+        mesh.visible = layer.visible;
+        mesh.renderOrder = Math.round((layer.z + 8) * 100);
+      });
       renderer.render(scene, camera);
     };
     render();
@@ -453,12 +460,8 @@ function Viewport({ layers, selectedId, onSelect, onMove, onMoveEnd, onCameraZoo
       const video=mesh.userData.videoElement as HTMLVideoElement|undefined;
       const mediaWidth=video?.videoWidth||media?.width||0, mediaHeight=video?.videoHeight||media?.height||0;
       if(mediaWidth>0&&mediaHeight>0){const mediaAspect=mediaWidth/mediaHeight,boardAspect=boardW/BOARD_H;const fitW=mediaAspect>boardAspect?boardW:BOARD_H*mediaAspect;const fitH=mediaAspect>boardAspect?boardW/mediaAspect:BOARD_H;const geometry=mesh.geometry as THREE.PlaneGeometry;const params=(geometry.parameters||{}) as {width?:number;height?:number};if(Math.abs((params.width||0)-fitW)>.001||Math.abs((params.height||0)-fitH)>.001){mesh.geometry.dispose();mesh.geometry=new THREE.PlaneGeometry(fitW,fitH);}}
-      mesh.position.set(layer.x, layer.y, layer.z);
-      mesh.scale.set(layer.scale*(layer.scaleX??1),layer.scale*(layer.scaleY??1),layer.scale*(layer.scaleZ??1));
-      mesh.rotation.z = THREE.MathUtils.degToRad(layer.rotation);
-      mesh.visible = layer.visible;
-      // Respect the actual Z depth; array-index render order made background layers draw over foreground objects.
-      mesh.renderOrder = Math.round((layer.z + 8) * 100);
+      // Mesh transforms are written only by the RAF render loop above. Keep this
+      // React effect responsible for geometry, texture and material synchronization.
       const fx={...DEFAULT_LAYER_FX,...(layer.fx||{})},uniforms=mesh.userData.fxUniforms;
       if(uniforms){
         const ids:Record<string,number>={none:0,cinematic:1,vintage:2,monochrome:3,warm:4,cool:5,teal:6,faded:7,dreamy:8};
